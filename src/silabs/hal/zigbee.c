@@ -72,13 +72,16 @@ static inline sl_status_t sl_zigbee_send_device_announcement(void) {
     return (sl_status_t)emberSendDeviceAnnouncement();
 }
 
+uint32_t emberAfGetLongPollIntervalMsCallback(void);
+void emberAfSetLongPollIntervalMsCallback(uint32_t longPollIntervalMs);
+
 static inline void sl_zigbee_af_set_long_poll_interval_ms_cb(
     uint32_t poll_rate_ms) {
-    (void)poll_rate_ms;
+    emberAfSetLongPollIntervalMsCallback(poll_rate_ms);
 }
 
 static inline uint32_t sl_zigbee_af_get_long_poll_interval_ms_cb(void) {
-    return 0;
+    return emberAfGetLongPollIntervalMsCallback();
 }
 #endif
 

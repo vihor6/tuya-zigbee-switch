@@ -5,13 +5,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#if defined(_SILICON_LABS_32B_SERIES_1)
+EmberStatus emberClearBindingTable(void);
+#endif
+
 void hal_system_reset(void) {
     halReboot();
 }
 
 void hal_factory_reset(void) {
     hal_zigbee_leave_network();
-#if !defined(_SILICON_LABS_32B_SERIES_1)
+#if defined(_SILICON_LABS_32B_SERIES_1)
+    emberClearBindingTable();
+#else
     sl_zigbee_clear_binding_table();
 #endif
 }
