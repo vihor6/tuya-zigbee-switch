@@ -276,15 +276,15 @@ print-silabs-sdk-provenance: assert-silabs-sdk-selector
 		"$(BOARD)" "$(MCU)" "$(SILABS_SDK_LINE)" "$(SILABS_SDK_VERSION)"
 
 print-silabs-architecture-gate-boards:
-	@printf '%s\n' "$(SILABS_ARCHITECTURE_GATE_BOARDS)"
+	@$(foreach board,$(SILABS_ARCHITECTURE_GATE_BOARDS),printf '%s\n' "$(board)";)
 
 print-silabs-mg13-target-boards:
-	@printf '%s\n' "$(SILABS_MG13_TARGET_BOARDS)"
+	@$(foreach board,$(SILABS_MG13_TARGET_BOARDS),printf '%s\n' "$(board)";)
 
 print-silabs-non-mg13-regression-boards:
-	@printf '%s\n' "$(SILABS_NON_MG13_REGRESSION_BOARDS)"
+	@$(foreach board,$(SILABS_NON_MG13_REGRESSION_BOARDS),printf '%s\n' "$(board)";)
 
 print-silabs-regression-gate-boards:
-	@printf '%s\n' "$(SILABS_REGRESSION_GATE_BOARDS)"
+	@$(foreach board,$(SILABS_REGRESSION_GATE_BOARDS),printf '%s\n' "$(board)";)
 
 .PHONY: help build build-firmware drop-old-files generate-ota-files generate-normal-ota generate-tuya-ota generate-force-ota update-indexes clean_z2m_index update_converters update_zha_quirk update_homed_extension update_supported_devices freeze_ota_links assert-silabs-sdk-selector assert-requested-silabs-sdk-line print-silabs-sdk-record print-silabs-sdk-install-manifest print-silabs-sdk-cache-key print-silabs-sdk-provenance print-silabs-architecture-gate-boards print-silabs-mg13-target-boards print-silabs-non-mg13-regression-boards print-silabs-regression-gate-boards

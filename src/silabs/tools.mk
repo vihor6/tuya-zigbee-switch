@@ -202,8 +202,6 @@ $(TOOLS_DIR)/zap: | $(DOWNLOAD_DIR)
 	@echo ""
 
 # Install targets (for manual installation from downloaded archives)
-install-simplicity_sdk: $(TOOLS_DIR)/simplicity_sdk
-
 install-commander: $(TOOLS_DIR)/commander
 
 install-slc-cli: $(TOOLS_DIR)/slc-cli
@@ -213,7 +211,7 @@ install-zap: $(TOOLS_DIR)/zap
 # Clean targets
 clean:
 	@echo "Removing installed tools from $(TOOLS_DIR)..."
-	@rm -rf $(TOOLS_DIR)/simplicity_sdk $(TOOLS_DIR)/commander $(TOOLS_DIR)/slc-cli $(TOOLS_DIR)/zap $(TOOLS_DIR)/spiflash_extension
+	@rm -rf $(foreach line,$(SILABS_SDK_LINES),$(TOOLS_DIR)/$(line)) $(TOOLS_DIR)/commander $(TOOLS_DIR)/slc-cli $(TOOLS_DIR)/zap $(TOOLS_DIR)/spiflash_extension
 	@echo "Tools removed (downloads preserved)"
 
 clean-downloads:
@@ -224,14 +222,16 @@ clean-downloads:
 # Verification targets
 verify:
 	@echo "Verifying installed tools..."
-	@if [ -d "$(TOOLS_DIR)/simplicity_sdk" ]; then \
-		echo "✓ Simplicity SDK: $(TOOLS_DIR)/simplicity_sdk"; \
-		SDK_METADATA=$$(find "$(TOOLS_DIR)/simplicity_sdk" -maxdepth 1 -name '*.slcs' | head -1); \
-		echo "  Version: $$(grep '^sdk_version:' "$$SDK_METADATA" 2>/dev/null | sed 's/sdk_version: "\(.*\)"/\1/' || echo 'Unknown')"; \
-	else \
-		echo "✗ Simplicity SDK: Not installed"; \
-		exit 1; \
-	fi
+	@for line in $(SILABS_SDK_LINES); do \
+		if [ -d "$(TOOLS_DIR)/$$line" ]; then \
+			echo "✓ Silicon Labs SDK ($$line): $(TOOLS_DIR)/$$line"; \
+			SDK_METADATA=$$(find "$(TOOLS_DIR)/$$line" -maxdepth 1 -name '*.slcs' | head -1); \
+			echo "  Version: $$(grep '^sdk_version:' "$$SDK_METADATA" 2>/dev/null | sed 's/sdk_version: \"\(.*\)\"/\1/' || echo 'Unknown')"; \
+		else \
+			echo "✗ Silicon Labs SDK ($$line): Not installed"; \
+			exit 1; \
+		fi; \
+	done
 	@if [ -f "$(TOOLS_DIR)/commander/commander-cli" ]; then \
 		echo "✓ Simplicity Commander: $(TOOLS_DIR)/commander/commander-cli"; \
 		echo "  Version: $$($(TOOLS_DIR)/commander/commander-cli --version 2>/dev/null | grep "Simplicity Commander" | head -1 || echo 'Unknown')"; \
