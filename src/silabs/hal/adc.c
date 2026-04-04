@@ -288,6 +288,103 @@ uint16_t hal_adc_read_mv() {
     return hal_adc_read_pin_mv(s_adc_pin);
 }
 
+#elif defined(_SILICON_LABS_32B_SERIES_1)
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "em_adc.h"
+#include "em_cmu.h"
+
+#define ADC_CLOCK_FREQ_HZ          1000000UL
+#define ADC_RESULT_MAX             0x0FFFUL
+#define ADC_REF_5V_MV              5000UL
+#define ADC_SINGLE_TIMEOUT_LOOPS   1000000UL
+
+static hal_gpio_pin_t  s_adc_pin   = HAL_INVALID_PIN;
+static hal_adc_input_t s_adc_input = HAL_ADC_INPUT_PIN;
+static bool            s_adc_ready = false;
+
+static uint16_t hal_adc_raw_to_mv(uint32_t raw, uint32_t full_scale_mv) {
+    return (uint16_t)((raw * full_scale_mv + (ADC_RESULT_MAX / 2U)) /
+                      ADC_RESULT_MAX);
+}
+
+static void hal_adc_enable_clock(void) {
+    CMU_ClockEnable(cmuClock_ADC0, true);
+}
+
+static void hal_adc_shutdown(void) {
+    ADC_IntClear(ADC0, ADC_IF_SINGLE);
+    ADC_Reset(ADC0);
+    CMU_ClockEnable(cmuClock_ADC0, false);
+}
+
+static uint16_t hal_adc_read_single_raw(ADC_PosSel_TypeDef pos_sel,
+                                        ADC_Ref_TypeDef reference) {
+    ADC_Init_TypeDef       init        = ADC_INIT_DEFAULT;
+    ADC_InitSingle_TypeDef init_single = ADC_INITSINGLE_DEFAULT;
+    uint32_t               timeout     = ADC_SINGLE_TIMEOUT_LOOPS;
+    uint16_t               raw         = 0;
+
+    hal_adc_enable_clock();
+
+    init.timebase = ADC_TimebaseCalc(0);
+    init.prescale = ADC_PrescaleCalc(ADC_CLOCK_FREQ_HZ, 0);
+
+    ADC_Init(ADC0, &init);
+
+    init_single.reference = reference;
+    init_single.acqTime   = adcAcqTime16;
+    init_single.posSel    = pos_sel;
+    init_single.negSel    = adcNegSelVSS;
+    init_single.diff      = false;
+
+    ADC_InitSingle(ADC0, &init_single);
+    ADC_IntClear(ADC0, ADC_IF_SINGLE);
+    ADC_Start(ADC0, adcStartSingle);
+
+    while (((ADC_IntGet(ADC0) & ADC_IF_SINGLE) == 0U) &&
+           (timeout > 0U)) {
+        timeout--;
+    }
+
+    if (timeout == 0U) {
+        hal_adc_shutdown();
+        return 0;
+    }
+
+    raw = (uint16_t)ADC_DataSingleGet(ADC0);
+    hal_adc_shutdown();
+    return raw;
+}
+
+static uint16_t hal_adc_read_supply_mv(void) {
+    uint16_t raw = hal_adc_read_single_raw(adcPosSelAVDD, adcRef5V);
+
+    return hal_adc_raw_to_mv(raw, ADC_REF_5V_MV);
+}
+
+void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
+    s_adc_input = input;
+    s_adc_pin   = pin;
+    s_adc_ready = true;
+}
+
+uint16_t hal_adc_read_mv() {
+    if (!s_adc_ready) {
+        return 0;
+    }
+
+    if (s_adc_input == HAL_ADC_INPUT_VBAT) {
+        return hal_adc_read_supply_mv();
+    }
+
+    // No current Series-1 board in this repo uses HAL_ADC_INPUT_PIN.
+    (void)s_adc_pin;
+    return 0;
+}
+
 #else
 
 void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
