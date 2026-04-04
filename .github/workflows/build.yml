@@ -4,156 +4,288 @@ on:
   workflow_dispatch:
     inputs:
       boards:
-        description: "Optional space-separated board keys to build. Leave empty to build all enabled boards."
+        description: "Optional space-separated board keys to build. Leave empty to run the staged Silabs gates."
         required: false
         default: ""
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-#    branches:
-#      - main
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  define-silabs-matrices:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.boards == '' }}
     runs-on: ubuntu-latest
-
+    outputs:
+      architecture: ${{ steps.matrices.outputs.architecture }}
+      regression: ${{ steps.matrices.outputs.regression }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0  
+      - id: matrices
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y make python3 yq unzip wget gcc-arm-none-eabi
+          def entries(boards, sdk_line, sdk_version):
+              return [
+                  {
+                      "board": board,
+                      "expected_sdk_line": sdk_line,
+                      "expected_sdk_version": sdk_version,
+                  }
+                  for board in boards
+              ]
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 21
+          architecture = [
+              {
+                  "board": "SWITCH_TUYA_VQJOB26P_TS0013",
+                  "expected_sdk_line": "gecko_sdk",
+                  "expected_sdk_version": "4.5.0",
+              },
+              {
+                  "board": "MODULE_TUYA_ZS2S_TS0001",
+                  "expected_sdk_line": "simplicity_sdk",
+                  "expected_sdk_version": "2025.6.2",
+              },
+              {
+                  "board": "MODULE_SONOFF_ZBMINIL2",
+                  "expected_sdk_line": "simplicity_sdk",
+                  "expected_sdk_version": "2025.6.2",
+              },
+          ]
 
-    - name: Cache Silicon Labs Tools
-      uses: actions/cache@v3
-      with:
-        path: silabs_tools
-        key: silabs-tools-gecko-sdk-4.4.6
+          mg13_boards = [
+              "SWITCH_TUYA_VQJOB26P_TS0011",
+              "SWITCH_TUYA_VQJOB26P_TS0012",
+              "SWITCH_TUYA_VQJOB26P_TS0013",
+          ]
+          mg21_boards = [
+              "MODULE_MOES_TS0011",
+              "MODULE_TUYA_ZS2S_TS0001",
+              "REMOTE_MOES_SWITCH_A_TS0042",
+              "REMOTE_MOES_SWITCH_A_TS0043",
+              "REMOTE_MOES_SWITCH_A_TS0044",
+              "REMOTE_TUYA_TS004F",
+              "SWITCH_MANHOT_B_TS0011",
+              "SWITCH_MANHOT_B_TS0012",
+              "SWITCH_MANHOT_B_TS0013",
+              "SWITCH_MOES_ALL_TS0014",
+              "SWITCH_PSMART_SL_TS0001",
+              "SWITCH_PSMART_SL_TS0002",
+              "SWITCH_PSMART_SL_TS0003",
+              "SWITCH_ZEMISMART_2_TS0011",
+              "SWITCH_ZEMISMART_2_TS0012",
+          ]
+          mg22_boards = [
+              "MODULE_SONOFF_ZBMINIL2",
+          ]
 
-    - name: Cache Telink Tools
-      uses: actions/cache@v3
-      with:
-        path: telink_tools
-        key: telink-tools-v3.7.2.0
+          regression = (
+              entries(mg13_boards, "gecko_sdk", "4.5.0")
+              + entries(mg21_boards, "simplicity_sdk", "2025.6.2")
+              + entries(mg22_boards, "simplicity_sdk", "2025.6.2")
+          )
 
-    - name: Cache Python Virtual Environment
-      uses: actions/cache@v3
-      with:
-        path: .venv
-        key: python-venv-${{ hashFiles('requirements.txt') }}
+          print("architecture=" + json.dumps({"include": architecture}, separators=(",", ":")))
+          print("regression=" + json.dumps({"include": regression}, separators=(",", ":")))
+          PY
 
-    - name: Install SDK and Toolchain
-      run: |
-        make setup || (
-          echo "dumping log:" &&
-          cat /home/runner/work/tuya-zigbee-switch/tuya-zigbee-switch/silabs_tools/slc-cli/bin/slc-cli/configuration/*.log
-        )
+  architecture-gate:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.boards == '' }}
+    needs: define-silabs-matrices
+    name: Architecture Gate • ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.define-silabs-matrices.outputs.architecture) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Clear out index files
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/clean_z2m_index 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
 
-    - name: Build selected boards
-      run: |
-        source .venv/bin/activate
-        if [ -n "${{ inputs.boards }}" ]; then
-          for ITER in ${{ inputs.boards }}; do
-            BUILD=$(yq -r ".${ITER}.build" device_db.yaml)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache Silicon Labs Tools
+        uses: actions/cache@v4
+        with:
+          path: silabs_tools
+          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
+          restore-keys: |
+            ${{ runner.os }}-silabs-tools-
+
+      - name: Cache Python Virtual Environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-venv-
+
+      - name: Install Silicon Labs toolchain
+        run: |
+          make silabs/tools/all
+          make setup_venv
+
+      - name: Build and verify provenance
+        run: .github/scripts/build_silabs_gate.sh "${{ matrix.board }}" "${{ matrix.expected_sdk_line }}" "${{ matrix.expected_sdk_version }}"
+
+      - name: Upload architecture gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-gate-${{ matrix.board }}
+          path: build-logs/${{ matrix.board }}.log
+
+  regression-gate:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.boards == '' }}
+    needs:
+      - define-silabs-matrices
+      - architecture-gate
+    name: Regression Gate • ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.define-silabs-matrices.outputs.regression) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache Silicon Labs Tools
+        uses: actions/cache@v4
+        with:
+          path: silabs_tools
+          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
+          restore-keys: |
+            ${{ runner.os }}-silabs-tools-
+
+      - name: Cache Python Virtual Environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-venv-
+
+      - name: Install Silicon Labs toolchain
+        run: |
+          make silabs/tools/all
+          make setup_venv
+
+      - name: Build and verify provenance
+        run: .github/scripts/build_silabs_gate.sh "${{ matrix.board }}" "${{ matrix.expected_sdk_line }}" "${{ matrix.expected_sdk_version }}"
+
+      - name: Upload regression gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-gate-${{ matrix.board }}
+          path: build-logs/${{ matrix.board }}.log
+
+  manual-selected-build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.boards != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache Silicon Labs Tools
+        uses: actions/cache@v4
+        with:
+          path: silabs_tools
+          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
+          restore-keys: |
+            ${{ runner.os }}-silabs-tools-
+
+      - name: Cache Telink Tools
+        uses: actions/cache@v4
+        with:
+          path: telink_tools
+          key: ${{ runner.os }}-telink-tools-${{ hashFiles('src/telink/tools.mk') }}
+          restore-keys: |
+            ${{ runner.os }}-telink-tools-
+
+      - name: Cache Python Virtual Environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-venv-
+
+      - name: Install SDKs and toolchain
+        run: |
+          make setup || (
+            echo "dumping log:" &&
+            cat /home/runner/work/tuya-zigbee-switch/tuya-zigbee-switch/silabs_tools/slc-cli/bin/slc-cli/configuration/*.log
+          )
+
+      - name: Build selected boards
+        run: |
+          source .venv/bin/activate
+          for ITER in ${{ github.event.inputs.boards }}; do
+            BUILD=$(yq -r ".${ITER}.build // true" device_db.yaml)
             DEVICE_TYPE=$(yq -r ".${ITER}.device_type" device_db.yaml)
 
-            if [ "$BUILD" = "no" ]; then
+            if [ "$BUILD" = "false" ]; then
               echo "Skipping $ITER as building this model is disabled in the db."
               continue
             fi
 
             echo "Building selected board: $ITER ($DEVICE_TYPE)"
-            BOARD=$ITER make board/build || exit 1
+            BOARD=$ITER DEVICE_TYPE=$DEVICE_TYPE make board/build
 
             if [ "$DEVICE_TYPE" = "end_device" ]; then
-              echo "Checking files for board: $ITER (end_device)"
-              ls -l bin/end_device/${ITER}_END_DEVICE/
+              ls -l "bin/end_device/${ITER}_END_DEVICE/"
             else
-              echo "Checking files for board: $ITER (router)"
-              ls -l bin/router/$ITER/
+              ls -l "bin/router/$ITER/"
             fi
           done
-        else
-          yq -r 'to_entries | sort_by(.key)[] | "\(.key) \(.value.device_type) \(.value.build)"' device_db.yaml | while read ITER TYPE BUILD; do
 
-            if [ "$BUILD" = "no" ]; then
-              echo "Skipping $ITER as building this model is disabled in the db."
-              continue
-            fi
-
-            echo "Building for board: $ITER (router)"
-            BOARD=$ITER DEVICE_TYPE=router make board/build || exit 1
-            echo "Checking if files were created for board: $ITER (router)"
-            ls -l bin/router/$ITER/
-
-            if [ "$TYPE" = "end_device" ]; then
-              echo "Building for board: $ITER (end_device)"
-              BOARD=${ITER} DEVICE_TYPE=end_device make board/build || exit 1
-              echo "Checking if files were created for board: $ITER (end_device)"
-              ls -l bin/end_device/${ITER}_END_DEVICE/
-            fi
-          done
-        fi
-
-    - name: Upload selected build artifacts
-      if: ${{ inputs.boards != '' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: selected-board-builds
-        path: |
-          bin/router/**
-          bin/end_device/**
-
-    - name: Update Z2M converters
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_converters
-
-    - name: Update ZHA quirks
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_zha_quirk
-
-    - name: Update HOMEd extensions
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_homed_extension
-
-    - name: Update supported_devices.md
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_supported_devices
-
-    - name: Commit changes
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add bin/* zigbee2mqtt/* zha/* homed/* docs/supported_devices.md
-        git diff --cached --quiet || git commit -m "Update firmware files, converters, quirks, extensions and supported devices list"
-        make tools/freeze_ota_links
-        git add zigbee2mqtt/*
-        git diff --cached --quiet || git commit -m "Freeze links in OTA index files"
-        git push
+      - name: Upload selected build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: selected-board-builds
+          path: |
+            bin/router/**
+            bin/end_device/**
