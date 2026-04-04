@@ -4853,6 +4853,87 @@ SWITCH_TUYA_TOUCH_TS0011:
   info: Needs pinout
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/104
   store: null
+SWITCH_TUYA_VQJOB26P_TS0011:
+  human_name: Tuya 1-gang single-live latching switch
+  category: switch
+  power: mains
+  neutral: without
+  output: relay_latching
+  device_type: end_device
+  stock_model_name: TS0011
+  stock_manufacturer_name: _TZ3000_vqjob26p
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0011
+  override_z2m_device: null
+  tuya_module: TYZS3
+  mcu_family: Silabs
+  mcu: EFR32MG13P732F512GM48
+  config_str: vqjob26p;TS0011-VQJ;SA1u;RF5B11;IF1i;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: null
+  stock_image_type: null
+  firmware_image_type: 47003
+  build: yes
+  status: mostly_supported
+  info: TS0011 inferred from TS0012 family pattern; pinout-based support, hardware untested
+  threads: null
+  store: null
+SWITCH_TUYA_VQJOB26P_TS0012:
+  human_name: Tuya 2-gang single-live latching switch
+  category: switch
+  power: mains
+  neutral: without
+  output: relay_latching
+  device_type: end_device
+  stock_model_name: TS0012
+  stock_manufacturer_name: _TZ3000_vqjob26p
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0012
+  override_z2m_device: null
+  tuya_module: TYZS3
+  mcu_family: Silabs
+  mcu: EFR32MG13P732F512GM48
+  config_str: vqjob26p;TS0012-VQJ;SD15u;RA3A5;IF2i;SA0u;RA2F4;IF0i;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: null
+  stock_image_type: null
+  firmware_image_type: 47004
+  build: yes
+  status: mostly_supported
+  info: TS0012 confirmed; pinout-based support, hardware untested
+  threads: null
+  store: null
+SWITCH_TUYA_VQJOB26P_TS0013:
+  human_name: Tuya 3-gang single-live latching switch
+  category: switch
+  power: mains
+  neutral: without
+  output: relay_latching
+  device_type: end_device
+  stock_model_name: TS0013
+  stock_manufacturer_name: _TZ3000_vqjob26p
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0013
+  override_z2m_device: null
+  tuya_module: TYZS3
+  mcu_family: Silabs
+  mcu: EFR32MG13P732F512GM48
+  config_str: vqjob26p;TS0013-VQJ;SD15u;RA3A5;IF2i;SA1u;RF5B11;IF1i;SA0u;RA2F4;IF0i;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: null
+  stock_image_type: null
+  firmware_image_type: 47005
+  build: yes
+  status: mostly_supported
+  info: TS0013 inferred from TS0012 family pattern; pinout-based support, hardware untested
+  threads: null
+  store: null
 SWITCH_ZEMISMART_1_TS0012:
   human_name: Zemismart 2-gang switch 🅰
   category: switch

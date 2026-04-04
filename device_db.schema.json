@@ -55,7 +55,7 @@
           "oneOf": [
             {
               "type": "string",
-              "enum": ["TLSR825x", "TLSR8253", "TLSR8253F512AT32", "TLSR8258", "EFR32MG21A020F768IM32", "EFR32MG22C224F512GN32", "JN5169"]
+              "enum": ["TLSR825x", "TLSR8253", "TLSR8253F512AT32", "TLSR8258", "EFR32MG13P732F512GM48", "EFR32MG21A020F768IM32", "EFR32MG22C224F512GN32", "JN5169"]
             },
             {"type": "null"}
           ],

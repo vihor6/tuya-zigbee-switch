@@ -1,5 +1,7 @@
 #include "hal/adc.h"
 
+#if __has_include("em_iadc.h")
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -285,3 +287,16 @@ uint16_t hal_adc_read_mv() {
 
     return hal_adc_read_pin_mv(s_adc_pin);
 }
+
+#else
+
+void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
+    (void)input;
+    (void)pin;
+}
+
+uint16_t hal_adc_read_mv() {
+    return 0;
+}
+
+#endif

@@ -183,12 +183,90 @@ void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
     }
 }
 
-hal_gpio_pin_t hal_gpio_parse_pin(const char *s) {
-    if (!s || s[0] < 'A' || s[0] > 'D' || s[1] < '0' || s[1] > '8')
-        return HAL_INVALID_PIN;
+static bool parse_pin_number(const char *s, uint8_t *pin_no) {
+    if (!s || s[0] < '0' || s[0] > '9') {
+        return false;
+    }
 
-    static const uint8_t ports[] = { gpioPortA, gpioPortB, gpioPortC, gpioPortD };
-    return (hal_gpio_pin_t)((ports[s[0] - 'A'] << 8) | (uint8_t)(s[1] - '0'));
+    uint16_t value = 0;
+    size_t index = 0;
+    for (; s[index] >= '0' && s[index] <= '9'; index++) {
+        value = (uint16_t)(value * 10U + (uint16_t)(s[index] - '0'));
+        if (value > 15U) {
+            return false;
+        }
+    }
+
+    if (s[index] != '\0') {
+        return false;
+    }
+
+    *pin_no = (uint8_t)value;
+    return true;
+}
+
+hal_gpio_pin_t hal_gpio_parse_pin(const char *s) {
+    if (!s || s[0] < 'A' || s[0] > 'Z') {
+        return HAL_INVALID_PIN;
+    }
+
+    uint8_t pin_no;
+    if (!parse_pin_number(s + 1, &pin_no)) {
+        return HAL_INVALID_PIN;
+    }
+
+    switch (s[0]) {
+#if (GPIO_PA_COUNT > 0)
+    case 'A':
+        if (pin_no >= GPIO_PA_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortA, pin_no);
+#endif
+
+#if (GPIO_PB_COUNT > 0)
+    case 'B':
+        if (pin_no >= GPIO_PB_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortB, pin_no);
+#endif
+
+#if (GPIO_PC_COUNT > 0)
+    case 'C':
+        if (pin_no >= GPIO_PC_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortC, pin_no);
+#endif
+
+#if (GPIO_PD_COUNT > 0)
+    case 'D':
+        if (pin_no >= GPIO_PD_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortD, pin_no);
+#endif
+
+#if (GPIO_PE_COUNT > 0)
+    case 'E':
+        if (pin_no >= GPIO_PE_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortE, pin_no);
+#endif
+
+#if (GPIO_PF_COUNT > 0)
+    case 'F':
+        if (pin_no >= GPIO_PF_COUNT) {
+            return HAL_INVALID_PIN;
+        }
+        return silabs_hal_gpio_make_pin(gpioPortF, pin_no);
+#endif
+
+    default:
+        return HAL_INVALID_PIN;
+    }
 }
 
 hal_gpio_pull_t hal_gpio_parse_pull(const char *pull_str) {

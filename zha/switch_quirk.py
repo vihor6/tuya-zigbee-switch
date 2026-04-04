@@ -496,6 +496,9 @@ CONFIGS = [
     "Zemi-2-gang;Zemi-2-gang-ED;SC3u;RC2D4;IB7;SD2u;RB5C4;ID7;M;",
     "ilauzyjm;TS0011-ZS;SB0u;RD1A4;IA6;M;",
     "rbl8c85w;TS0012-ZS;SA0u;RD1A4;IC1;SB1u;RC0C2;IA5;M;",
+    "vqjob26p;TS0011-VQJ;SA1u;RF5B11;IF1i;M;",
+    "vqjob26p;TS0012-VQJ;SD15u;RA3A5;IF2i;SA0u;RA2F4;IF0i;M;",
+    "vqjob26p;TS0013-VQJ;SD15u;RA3A5;IF2i;SA1u;RF5B11;IF1i;SA0u;RA2F4;IF0i;M;",
 ]
 
 for config in CONFIGS:

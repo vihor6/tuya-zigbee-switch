@@ -76,6 +76,10 @@ battery_t battery = {
 uint32_t parse_int(const char *s);
 char *seek_until(char *cursor, char needle);
 char *extract_next_entry(char **cursor);
+static const char *find_pin_tail(const char *cursor);
+static hal_gpio_pin_t parse_entry_pin(const char *cursor, const char **tail);
+static hal_gpio_pull_t parse_entry_pull(const char *cursor);
+static uint8_t entry_pin_on_high(const char *cursor);
 
 void on_reset_clicked(void *_) {
     hal_factory_reset();
@@ -86,6 +90,59 @@ void on_multi_press_reset(void *_, uint8_t press_count) {
         press_count >= g_multi_press_reset_count) {
         hal_factory_reset();
     }
+}
+
+static const char *find_pin_tail(const char *cursor) {
+    const char *pin_start = cursor;
+
+    if (!cursor || cursor[0] < 'A' || cursor[0] > 'Z') {
+        return cursor;
+    }
+
+    cursor++;
+    if (*cursor < '0' || *cursor > '9') {
+        return pin_start;
+    }
+
+    while (*cursor >= '0' && *cursor <= '9') {
+        cursor++;
+    }
+
+    return cursor;
+}
+
+static hal_gpio_pin_t parse_entry_pin(const char *cursor, const char **tail) {
+    const char *pin_tail = find_pin_tail(cursor);
+    size_t      pin_len  = (size_t)(pin_tail - cursor);
+
+    if (pin_len == 0 || pin_len >= 6) {
+        if (tail != NULL) {
+            *tail = cursor;
+        }
+        return HAL_INVALID_PIN;
+    }
+
+    char pin_buf[6];
+    memcpy(pin_buf, cursor, pin_len);
+    pin_buf[pin_len] = '\0';
+
+    if (tail != NULL) {
+        *tail = pin_tail;
+    }
+
+    return hal_gpio_parse_pin(pin_buf);
+}
+
+static hal_gpio_pull_t parse_entry_pull(const char *cursor) {
+    if (cursor == NULL || cursor[0] == '\0') {
+        return HAL_GPIO_PULL_NONE;
+    }
+
+    return hal_gpio_parse_pull(cursor);
+}
+
+static uint8_t entry_pin_on_high(const char *cursor) {
+    return cursor == NULL || cursor[0] != 'i';
 }
 
 void parse_config() {
@@ -126,12 +183,13 @@ void parse_config() {
             }
         } else if (entry[0] == 'B' && entry[1] == 'T') {
             // Battery: BT<pin>, e.g. BTC5
-            hal_gpio_pin_t pin = hal_gpio_parse_pin(entry + 2);
+            hal_gpio_pin_t pin = parse_entry_pin(entry + 2, NULL);
             battery.pin = pin;
             battery_init(&battery);
         } else if (entry[0] == 'B') {
-            hal_gpio_pin_t  pin  = hal_gpio_parse_pin(entry + 1);
-            hal_gpio_pull_t pull = hal_gpio_parse_pull(entry + 3);
+            const char *    tail = NULL;
+            hal_gpio_pin_t  pin  = parse_entry_pin(entry + 1, &tail);
+            hal_gpio_pull_t pull = parse_entry_pull(tail);
             hal_gpio_init(pin, 1, pull);
 
             buttons[buttons_cnt].pin = pin;
@@ -141,10 +199,11 @@ void parse_config() {
             buttons[buttons_cnt].on_long_press           = on_reset_clicked;
             buttons_cnt++;
         } else if (entry[0] == 'L') {
-            hal_gpio_pin_t pin = hal_gpio_parse_pin(entry + 1);
+            const char *  tail = NULL;
+            hal_gpio_pin_t pin = parse_entry_pin(entry + 1, &tail);
             hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
             leds[leds_cnt].pin     = pin;
-            leds[leds_cnt].on_high = entry[3] != 'i';
+            leds[leds_cnt].on_high = entry_pin_on_high(tail);
 
             led_init(&leds[leds_cnt]);
 
@@ -155,10 +214,11 @@ void parse_config() {
             has_dedicated_status_led = true;
             leds_cnt++;
         } else if (entry[0] == 'I') {
-            hal_gpio_pin_t pin = hal_gpio_parse_pin(entry + 1);
+            const char *  tail = NULL;
+            hal_gpio_pin_t pin = parse_entry_pin(entry + 1, &tail);
             hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
             leds[leds_cnt].pin     = pin;
-            leds[leds_cnt].on_high = entry[3] != 'i';
+            leds[leds_cnt].on_high = entry_pin_on_high(tail);
             led_init(&leds[leds_cnt]);
 
             for (int index = 0; index < 4; index++) {
@@ -185,8 +245,9 @@ void parse_config() {
             }
             leds_cnt++;
         } else if (entry[0] == 'S') {
-            hal_gpio_pin_t  pin  = hal_gpio_parse_pin(entry + 1);
-            hal_gpio_pull_t pull = hal_gpio_parse_pull(entry + 3);
+            const char *    tail = NULL;
+            hal_gpio_pin_t  pin  = parse_entry_pin(entry + 1, &tail);
+            hal_gpio_pull_t pull = parse_entry_pull(tail);
             hal_gpio_init(pin, 1, pull);
 
             buttons[buttons_cnt].pin = pin;
@@ -212,14 +273,15 @@ void parse_config() {
             buttons_cnt++;
             switch_clusters_cnt++;
         } else if (entry[0] == 'R') {
-            hal_gpio_pin_t pin = hal_gpio_parse_pin(entry + 1);
+            const char *   tail = NULL;
+            hal_gpio_pin_t pin  = parse_entry_pin(entry + 1, &tail);
             hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
 
             relays[relays_cnt].pin     = pin;
             relays[relays_cnt].on_high = 1;
 
-            if (entry[3] != '\0') {
-                pin = hal_gpio_parse_pin(entry + 3);
+            if (tail != NULL && tail[0] >= 'A' && tail[0] <= 'Z') {
+                pin = parse_entry_pin(tail, NULL);
                 hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
                 relays[relays_cnt].off_pin     = pin;
                 relays[relays_cnt].is_latching = 1;
@@ -231,9 +293,10 @@ void parse_config() {
             relays_cnt++;
             relay_clusters_cnt++;
         } else if (entry[0] == 'X') {
-            hal_gpio_pin_t  open_pin  = hal_gpio_parse_pin(entry + 1);
-            hal_gpio_pin_t  close_pin = hal_gpio_parse_pin(entry + 3);
-            hal_gpio_pull_t pull      = hal_gpio_parse_pull(entry + 5);
+            const char *    tail = NULL;
+            hal_gpio_pin_t  open_pin  = parse_entry_pin(entry + 1, &tail);
+            hal_gpio_pin_t  close_pin = parse_entry_pin(tail, &tail);
+            hal_gpio_pull_t pull      = parse_entry_pull(tail);
 
             hal_gpio_init(open_pin, 1, pull);
             hal_gpio_init(close_pin, 1, pull);
@@ -260,8 +323,9 @@ void parse_config() {
                 cover_switch_clusters_cnt;
             cover_switch_clusters_cnt++;
         } else if (entry[0] == 'C') {
-            hal_gpio_pin_t open_pin  = hal_gpio_parse_pin(entry + 1);
-            hal_gpio_pin_t close_pin = hal_gpio_parse_pin(entry + 3);
+            const char *   tail = NULL;
+            hal_gpio_pin_t open_pin  = parse_entry_pin(entry + 1, &tail);
+            hal_gpio_pin_t close_pin = parse_entry_pin(tail, NULL);
 
             hal_gpio_init(open_pin, 0, HAL_GPIO_PULL_NONE);
             hal_gpio_init(close_pin, 0, HAL_GPIO_PULL_NONE);

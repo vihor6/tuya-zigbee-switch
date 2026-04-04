@@ -76,7 +76,10 @@ component:
 - instance: [example]
   id: cli
 - {id: gpiointerrupt}
-- {id: emlib_iadc}
+- condition: [device_series_1]
+  id: emlib_adc
+- condition: [device_series_2]
+  id: emlib_iadc
 - {id: iostream_recommended_stream}
 - { instance: [inst], id: iostream_usart}
 - {id: toolchain_gcc}
