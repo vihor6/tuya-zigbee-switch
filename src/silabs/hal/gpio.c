@@ -2,10 +2,10 @@
 #include <stddef.h>
 #include <string.h>
 
-#if defined(_SILICON_LABS_32B_SERIES_1)
-#include "em_cmu.h"
-#else
+#if __has_include("sl_clock_manager.h")
 #include "sl_clock_manager.h"
+#else
+#include "em_cmu.h"
 #endif
 #include "sl_gpio.h"
 
@@ -15,7 +15,7 @@
 #include "silabs/hal/silabs_gpio_utils.h"
 #include <stdio.h>
 
-#if defined(_SILICON_LABS_32B_SERIES_1)
+#if !__has_include("sl_clock_manager.h")
 typedef sl_zigbee_event_t     sli_zigbee_event_t;
 typedef sl_zigbee_event_t     sl_zigbee_af_event_t;
 
