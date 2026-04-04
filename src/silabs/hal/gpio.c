@@ -319,16 +319,10 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
     }
     GPIO_ExtIntConfig(port, pin_num, line, true, true, true);
 
-    bool active_is_high = (slot->pull_dir == HAL_GPIO_PULL_DOWN);
-    unsigned int em4_line = GPIOINT_EM4WUCallbackRegisterExt(
-        port, pin_num, (GPIOINT_IrqCallbackPtrExt_t)_dispatch_em4wu, slot);
-    if (em4_line != INTERRUPT_UNAVAILABLE) {
-        GPIO_EM4WUExtIntConfig(port, pin_num, em4_line,
-                               active_is_high ? 1U : 0U, true);
-        slot->em4wu_int_no = em4_line;
-    } else {
-        slot->em4wu_int_no = LINE_MISSING;
-    }
+    // Gecko SDK 4.4.6 exposes regular GPIOINT callbacks here but the
+    // EM4WU extended registration symbol is not linkable in this CI/tool
+    // combination, so keep the regular EXTI path only for the MG13 build.
+    slot->em4wu_int_no = LINE_MISSING;
 }
 
 void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
@@ -343,11 +337,6 @@ void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
             em4wu_int_no = s_slots[i].em4wu_int_no;
             break;
         }
-    }
-
-    if (em4wu_int_no != LINE_MISSING) {
-        GPIO_EM4WUExtIntConfig(port, pin_num, em4wu_int_no, 0, false);
-        GPIOINT_EM4WUCallbackUnRegister(em4wu_int_no);
     }
 
     if (int_no != LINE_MISSING) {
