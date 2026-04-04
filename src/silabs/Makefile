@@ -1,11 +1,15 @@
 # Silicon Labs build configuration
 SIMPLICITY_SDK_DIR ?= ../../silabs_tools/simplicity_sdk
+SILABS_SDK_DIR     ?= $(SIMPLICITY_SDK_DIR)
+SILABS_SDK_LINE    ?= simplicity_sdk
+SILABS_SDK_VERSION ?= unknown
 SLC_DIR            ?= ../../silabs_tools/slc-cli
 COMMANDER_DIR      ?= ../../silabs_tools/commander
 ZAP_DIR            ?= ../../silabs_tools/zap
 GCC_BIN            ?= arm-none-eabi-gcc
 
 # Version and board configuration
+BOARD ?= UNKNOWN
 VERSION_STR ?= 0.0.0
 FILE_VERSION ?= 0
 NVM_MIGRATIONS_VERSION ?= $(shell cat ../../NVM_MIGRATIONS_VERSION 2>/dev/null || echo "1")
@@ -80,6 +84,16 @@ help:
 TOOLCHAIN_BIN := $(shell command -v $(GCC_BIN))
 TOOLCHAIN_DIR := $(abspath $(dir $(TOOLCHAIN_BIN))/..)
 
+define print_silabs_provenance
+	@echo "BOARD=$(BOARD) MCU=$(MCU) SDK_LINE=$(SILABS_SDK_LINE) SDK_VERSION=$(SILABS_SDK_VERSION)"
+endef
+
+check-silabs-sdk-dir:
+	@if [ ! -d "$(SILABS_SDK_DIR)" ]; then \
+		echo "Missing Silicon Labs SDK directory: $(SILABS_SDK_DIR)" >&2; \
+		exit 1; \
+	fi
+
 # Delegate tools targets to tools.mk
 tools/%:
 	$(MAKE) -f tools.mk $*
@@ -116,10 +130,11 @@ else
 endif
 
 # Generate project files
-gen:
+gen: check-silabs-sdk-dir
+	$(print_silabs_provenance)
 	rm -rf $(ZIGBEE_BUILD_DIR)
 	$(SLC_DIR)/slc configuration -gcc $(TOOLCHAIN_DIR)
-	$(SLC_DIR)/slc configuration --sdk $(SIMPLICITY_SDK_DIR)
+	$(SLC_DIR)/slc configuration --sdk $(SILABS_SDK_DIR)
 
 	@# Unset virtual environment variables to avoid conflicts and set ZAP environment
 	env -u VIRTUAL_ENV -u PYTHONHOME -u PYTHONPATH \
@@ -140,6 +155,7 @@ gen:
 
 # Build targets
 build:
+	$(print_silabs_provenance)
 	cd $(ZIGBEE_BUILD_DIR) && make -f $(ZIGBEE_PROJECT_NAME).Makefile -j32 release
 	@if ! cmp -s $(ZIGBEE_BUILD_DIR)/build/release/$(ZIGBEE_PROJECT_NAME).s37 $(BIN_FILE); then \
 		mkdir -p $(dir $(BIN_FILE)); \
@@ -149,12 +165,15 @@ build:
 
 # Flash targets
 install:
+	$(print_silabs_provenance)
 	$(COMMANDER_DIR)/commander-cli flash --device $(MCU) $(ZIGBEE_BUILD_DIR)/build/release/$(ZIGBEE_PROJECT_NAME).s37
 
 # Device management
 erase_dev:
+	$(print_silabs_provenance)
 	$(COMMANDER_DIR)/commander-cli device --device $(MCU) masserase
 restart_dev:
+	$(print_silabs_provenance)
 	$(COMMANDER_DIR)/commander-cli device --device $(MCU) reset
 
 
@@ -165,6 +184,7 @@ OTA_VERSION_ARG := --firmware-version "$(FILE_VERSION)"
 endif
 
 ota:
+	$(print_silabs_provenance)
 	@mkdir -p $(dir $(OTA_FILE))
 	$(COMMANDER_DIR)/commander-cli gbl create \
 		"$(ZIGBEE_BUILD_DIR)/build/release/$(ZIGBEE_PROJECT_NAME).gbl" \
@@ -181,6 +201,7 @@ ota:
 
 # Bootloader targets
 bootloader_gen:
+	$(print_silabs_provenance)
 	rm -rf $(BOOTLOADER_BUILD_DIR)
 
 	@# Unset virtual environment variables to avoid conflicts 
@@ -197,10 +218,12 @@ bootloader_gen:
 		--output-type=vscode,makefile
 
 bootloader_build: bootloader_gen
+	$(print_silabs_provenance)
 	cd $(BOOTLOADER_BUILD_DIR) && make -f $(BOOTLOADER_PROJECT_NAME).Makefile -j32 release
 
 bootloader_install:
+	$(print_silabs_provenance)
 	@echo "Flashing bootloader..."
 	$(COMMANDER_DIR)/commander-cli flash $(BOOTLOADER_BUILD_DIR)/build/release/$(BOOTLOADER_PROJECT_NAME).s37 --device $(MCU)
 
-.PHONY: help tools/% gen build build_release install install_release erase_dev restart_dev bootloader_gen bootloader_build bootloader_install
+.PHONY: help tools/% gen build build_release install install_release erase_dev restart_dev bootloader_gen bootloader_build bootloader_install check-silabs-sdk-dir
