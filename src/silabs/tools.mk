@@ -5,18 +5,11 @@
 PROJECT_ROOT := ../..
 TOOLS_DIR := $(PROJECT_ROOT)/silabs_tools
 DOWNLOAD_DIR := $(TOOLS_DIR)/downloads
+BOARD_MAKE := $(PROJECT_ROOT)/board.mk
 
-# Tool versions and URLs
-#
-# NOTE:
-# The project .slcp files pin `gecko_sdk` 4.4.6. Newer `simplicity_sdk`
-# releases dropped the EFR32MG13 device components and the Series-1
-# `emlib_adc` component used by this repo, so targeted MG13 CI builds fail
-# during `slc generate` unless we install the matching Gecko SDK release.
-SIMPLICITY_SDK_VERSION := 4.4.6
-SIMPLICITY_SDK_REPO := https://github.com/SiliconLabs/gecko_sdk
-SIMPLICITY_SDK_ARCHIVE := gecko-sdk-$(SIMPLICITY_SDK_VERSION).zip
-SIMPLICITY_SDK_URL := $(SIMPLICITY_SDK_REPO)/releases/download/v$(SIMPLICITY_SDK_VERSION)/gecko-sdk.zip
+# SDK manifest comes from the authoritative selector contract in board.mk.
+SILABS_SDK_MANIFEST := $(shell $(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest)
+SILABS_SDK_LINES := $(foreach record,$(SILABS_SDK_MANIFEST),$(word 1,$(subst |, ,$(record))))
 
 # Silicon Labs download URLs
 COMMANDER_URL := https://www.silabs.com/documents/public/software/SimplicityCommander-Linux.zip
@@ -27,27 +20,30 @@ ZAP_VERSION := 2025.10.23
 ZAP_ARCHIVE := zap-linux-x64.zip
 ZAP_URL := https://github.com/project-chip/zap/releases/download/v$(ZAP_VERSION)/$(ZAP_ARCHIVE)
 
-.PHONY: all clean clean-downloads help status verify trust
-.PHONY: simplicity_sdk commander slc-cli zap
-.PHONY: install-simplicity_sdk install-commander install-slc-cli install-zap
+.PHONY: all clean clean-downloads help status verify trust sdk-all
+.PHONY: $(SILABS_SDK_LINES) commander slc-cli zap
+.PHONY: $(foreach line,$(SILABS_SDK_LINES),install-$(line)) install-commander install-slc-cli install-zap
 
 # Default target
-all: simplicity_sdk commander slc-cli zap trust verify
+all: sdk-all commander slc-cli zap trust verify
 	@echo "All Silicon Labs tools have been downloaded and installed to $(TOOLS_DIR)"
 
 # Trust SDK signature and configure ZAP
-trust:
-	@echo "Trusting Silicon Labs SDK signature..."
-	$(TOOLS_DIR)/slc-cli/slc signature trust --sdk $(TOOLS_DIR)/simplicity_sdk
-	$(TOOLS_DIR)/slc-cli/slc signature trust --sdk $(TOOLS_DIR)/simplicity_sdk -extpath $(abspath $(TOOLS_DIR)/spiflash_extension)
+trust: $(TOOLS_DIR)/slc-cli sdk-all
+	@for line in $(SILABS_SDK_LINES); do \
+		echo "Trusting Silicon Labs SDK signature for $$line..."; \
+		$(TOOLS_DIR)/slc-cli/slc signature trust --sdk $(TOOLS_DIR)/$$line; \
+		$(TOOLS_DIR)/slc-cli/slc signature trust --sdk $(TOOLS_DIR)/$$line -extpath $(abspath $(TOOLS_DIR)/spiflash_extension); \
+	done
 
 # Help target
 help:
 	@echo "Silicon Labs Tools Download Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  all          - Download and install all tools"
-	@echo "  simplicity_sdk - Download and install Simplicity SDK from GitHub"
+	@echo "  all          - Download and install all tools and both SDK lines"
+	@echo "  sdk-all      - Download and install all SDK roots from board.mk selector"
+	@$(foreach line,$(SILABS_SDK_LINES),echo "  $(line) - Download and install SDK root for $(line)";)
 	@echo "  commander    - Download and install Simplicity Commander"
 	@echo "  slc-cli      - Download and install SLC CLI tool"
 	@echo "  zap          - Download and install ZAP (Zigbee Application Processor)"
@@ -75,33 +71,41 @@ $(TOOLS_DIR):
 $(DOWNLOAD_DIR): | $(TOOLS_DIR)
 	mkdir -p $(DOWNLOAD_DIR)
 
-# Gecko SDK from GitHub (kept under the historical `simplicity_sdk` directory
-# to avoid touching the rest of the repo/tooling paths)
-simplicity_sdk: $(TOOLS_DIR)/simplicity_sdk
-	@echo "Simplicity SDK installed successfully"
+sdk-all: $(foreach line,$(SILABS_SDK_LINES),$(TOOLS_DIR)/$(line))
+	@echo "Installed Silicon Labs SDK roots: $(SILABS_SDK_LINES)"
 
-$(TOOLS_DIR)/simplicity_sdk: | $(DOWNLOAD_DIR)
-	@echo "Downloading Simplicity SDK v$(SIMPLICITY_SDK_VERSION) from GitHub..."
-	@if [ ! -f "$(DOWNLOAD_DIR)/$(SIMPLICITY_SDK_ARCHIVE)" ]; then \
-		echo "Downloading $(SIMPLICITY_SDK_URL)"; \
-		curl -L "$(SIMPLICITY_SDK_URL)" \
-			-o "$(DOWNLOAD_DIR)/$(SIMPLICITY_SDK_ARCHIVE)" \
-			--fail --show-error; \
-	fi
-	@echo "Extracting Simplicity SDK..."
-	@rm -rf $(TOOLS_DIR)/simplicity_sdk
-	@mkdir -p $(TOOLS_DIR)/simplicity_sdk
-	@unzip -q "$(DOWNLOAD_DIR)/$(SIMPLICITY_SDK_ARCHIVE)" -d $(TOOLS_DIR)/simplicity_sdk
-	@# Move files from a single extracted top-level directory if needed.
-	@SDK_SUBDIR=$$(find "$(TOOLS_DIR)/simplicity_sdk" -mindepth 1 -maxdepth 1 -type d | head -1); \
-	ENTRY_COUNT=$$(find "$(TOOLS_DIR)/simplicity_sdk" -mindepth 1 -maxdepth 1 | wc -l); \
+define install_sdk_dir_rule
+$(1): $(TOOLS_DIR)/$(1)
+	@echo "$(1) installed successfully"
+
+install-$(1): $(TOOLS_DIR)/$(1)
+
+$(TOOLS_DIR)/$(1): | $(DOWNLOAD_DIR)
+	@record="$$($(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-record SDK_LINE=$(1))"; \
+	version="$$(printf '%s' "$$record" | cut -d'|' -f2)"; \
+	archive="$$(printf '%s' "$$record" | cut -d'|' -f3)"; \
+	url="$$(printf '%s' "$$record" | cut -d'|' -f4)"; \
+	echo "Downloading $(1) v$$version..."; \
+	if [ ! -f "$(DOWNLOAD_DIR)/$$archive" ]; then \
+		echo "Downloading $$url"; \
+		curl -L "$$url" -o "$(DOWNLOAD_DIR)/$$archive" --fail --show-error; \
+	fi; \
+	echo "Extracting $(1)..."; \
+	rm -rf "$(TOOLS_DIR)/$(1)"; \
+	mkdir -p "$(TOOLS_DIR)/$(1)"; \
+	unzip -q "$(DOWNLOAD_DIR)/$$archive" -d "$(TOOLS_DIR)/$(1)"; \
+	SDK_SUBDIR=$$(find "$(TOOLS_DIR)/$(1)" -mindepth 1 -maxdepth 1 -type d | head -1); \
+	ENTRY_COUNT=$$(find "$(TOOLS_DIR)/$(1)" -mindepth 1 -maxdepth 1 | wc -l); \
 	if [ "$$ENTRY_COUNT" = "1" ] && [ -n "$$SDK_SUBDIR" ]; then \
-		mv "$$SDK_SUBDIR"/* "$(TOOLS_DIR)/simplicity_sdk/"; \
+		mv "$$SDK_SUBDIR"/* "$(TOOLS_DIR)/$(1)/"; \
 		rmdir "$$SDK_SUBDIR"; \
-	fi
-	@echo Adding simlinkt to extensions...
-	@ln -s ../src/silabs/spiflash_extension $(TOOLS_DIR)/spiflash_extension
-	@echo "Simplicity SDK v$(SIMPLICITY_SDK_VERSION) installed to $(TOOLS_DIR)/simplicity_sdk"
+	fi; \
+	rm -f "$(TOOLS_DIR)/spiflash_extension"; \
+	ln -s ../src/silabs/spiflash_extension "$(TOOLS_DIR)/spiflash_extension"; \
+	echo "SDK $(1) v$$version installed to $(TOOLS_DIR)/$(1)"
+endef
+
+$(foreach line,$(SILABS_SDK_LINES),$(eval $(call install_sdk_dir_rule,$(line))))
 
 # Simplicity Commander
 commander: $(TOOLS_DIR)/commander
