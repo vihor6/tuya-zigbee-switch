@@ -95,7 +95,7 @@ void on_multi_press_reset(void *_, uint8_t press_count) {
 static const char *find_pin_tail(const char *cursor) {
     const char *pin_start = cursor;
 
-    if (!cursor || cursor[0] < 'A' || cursor[0] > 'Z') {
+    if (!cursor || cursor[0] < 'A' || cursor[0] > 'F') {
         return cursor;
     }
 
@@ -115,14 +115,14 @@ static hal_gpio_pin_t parse_entry_pin(const char *cursor, const char **tail) {
     const char *pin_tail = find_pin_tail(cursor);
     size_t      pin_len  = (size_t)(pin_tail - cursor);
 
-    if (pin_len == 0 || pin_len >= 6) {
+    if (pin_len == 0 || pin_len > 3) {
         if (tail != NULL) {
             *tail = cursor;
         }
         return HAL_INVALID_PIN;
     }
 
-    char pin_buf[6];
+    char pin_buf[4];
     memcpy(pin_buf, cursor, pin_len);
     pin_buf[pin_len] = '\0';
 
@@ -256,7 +256,7 @@ void parse_config() {
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
             buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
 
-            if (entry[3] == 'd')
+            if (pull == HAL_GPIO_PULL_DOWN)
                 buttons[buttons_cnt].pressed_when_high = 1;
             switch_clusters[switch_clusters_cnt].switch_idx = switch_clusters_cnt;
             switch_clusters[switch_clusters_cnt].mode       =

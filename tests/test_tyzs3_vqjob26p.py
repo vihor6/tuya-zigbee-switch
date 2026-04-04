@@ -36,6 +36,21 @@ def test_parser_supports_multidigit_and_port_f_gpio_tokens() -> None:
         assert device.zcl_relay_get(2) == "0"
 
 
+def test_multidigit_button_pull_down_still_marks_pressed_high() -> None:
+    cfg = "Mfr;Model;SD15d;RD2;"
+
+    with StubProc(device_config=cfg) as proc:
+        device = Device(proc)
+
+        device.set_gpio("D15", 1)
+        device.step_time(60)
+        assert device.zcl_relay_get(2) == "1"
+
+        device.set_gpio("D15", 0)
+        device.step_time(60)
+        assert device.zcl_relay_get(2) == "0"
+
+
 def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
     db = _load_device_db()
 
