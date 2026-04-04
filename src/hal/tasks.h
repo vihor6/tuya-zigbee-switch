@@ -10,7 +10,11 @@ typedef void (*task_handler_t)(void *arg);
 
 #include "zigbee_app_framework_event.h"
 
+#if defined(_SILICON_LABS_32B_SERIES_1)
+typedef sl_zigbee_event_t hal_platfrom_struct_t;
+#else
 typedef sli_zigbee_event_t hal_platfrom_struct_t;
+#endif
 
 #endif
 

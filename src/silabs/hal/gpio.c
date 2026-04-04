@@ -2,7 +2,11 @@
 #include <stddef.h>
 #include <string.h>
 
+#if defined(_SILICON_LABS_32B_SERIES_1)
+#include "em_cmu.h"
+#else
 #include "sl_clock_manager.h"
+#endif
 #include "sl_gpio.h"
 
 #include "zigbee_app_framework_event.h"
@@ -10,6 +14,21 @@
 #include "hal/gpio.h"
 #include "silabs/hal/silabs_gpio_utils.h"
 #include <stdio.h>
+
+#if defined(_SILICON_LABS_32B_SERIES_1)
+typedef sl_zigbee_event_t     sli_zigbee_event_t;
+typedef sl_zigbee_event_t     sl_zigbee_af_event_t;
+
+#define sl_zigbee_af_event_set_active sl_zigbee_event_set_active
+
+static inline void hal_gpio_enable_clock(void) {
+    CMU_ClockEnable(cmuClock_GPIO, true);
+}
+#else
+static inline void hal_gpio_enable_clock(void) {
+    (void)sl_clock_manager_enable_bus_clock(SL_BUS_CLOCK_GPIO);
+}
+#endif
 
 // Get container structure from embedded member pointer
 #define container_of(ptr, type, member) \
@@ -24,7 +43,7 @@ static bool s_gpio_inited        = false;
 
 static void hal_gpio_ensure_clock(void) {
     if (!s_gpio_clock_enabled) {
-        sl_clock_manager_enable_bus_clock(SL_BUS_CLOCK_GPIO);
+        hal_gpio_enable_clock();
         s_gpio_clock_enabled = true;
     }
 }

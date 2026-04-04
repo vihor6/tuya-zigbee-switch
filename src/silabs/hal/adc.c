@@ -1,6 +1,6 @@
 #include "hal/adc.h"
 
-#if __has_include("em_iadc.h")
+#if defined(_SILICON_LABS_32B_SERIES_2)
 
 #include <stdbool.h>
 #include <stdint.h>

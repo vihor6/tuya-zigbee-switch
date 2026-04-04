@@ -36,6 +36,10 @@ typedef EmberNodeType            sl_zigbee_node_type_t;
 #define SL_ZIGBEE_S2S_TARGET_DEVICE      EMBER_S2S_TARGET_DEVICE
 #define SL_ZIGBEE_LEAVE_NWK_WITH_NO_OPTION 0
 
+#ifndef ZCL_FIXED_ENDPOINT_COUNT
+#define ZCL_FIXED_ENDPOINT_COUNT FIXED_ENDPOINT_COUNT
+#endif
+
 #define sl_zigbee_af_endpoint_enable_disable emberAfEndpointEnableDisable
 #define sl_zigbee_af_send_immediate_default_response \
     emberAfSendImmediateDefaultResponse
