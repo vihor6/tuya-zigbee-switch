@@ -53,6 +53,13 @@ typedef EmberNodeType            sl_zigbee_node_type_t;
 #define sl_zigbee_af_fill_command_global_server_to_client_report_attributes \
     emberAfFillCommandGlobalServerToClientReportAttributes
 #define sl_zigbee_set_manufacturer_code emberSetManufacturerCode
+#define sl_zigbee_clear_binding_table emberClearBindingTable
+#define sl_zigbee_af_set_short_poll_interval_ms_cb \
+    emberAfSetShortPollIntervalMsCallback
+#define sl_zigbee_af_set_long_poll_interval_ms_cb \
+    emberAfSetLongPollIntervalMsCallback
+#define sl_zigbee_af_get_long_poll_interval_ms_cb \
+    emberAfGetLongPollIntervalMsCallback
 
 static inline sl_status_t sl_zigbee_leave_network(uint8_t options) {
     (void)options;
@@ -70,18 +77,6 @@ sl_zigbee_af_get_node_type(sl_zigbee_node_type_t *node_type) {
 
 static inline sl_status_t sl_zigbee_send_device_announcement(void) {
     return (sl_status_t)emberSendDeviceAnnouncement();
-}
-
-uint32_t emberAfGetLongPollIntervalMsCallback(void);
-void emberAfSetLongPollIntervalMsCallback(uint32_t longPollIntervalMs);
-
-static inline void sl_zigbee_af_set_long_poll_interval_ms_cb(
-    uint32_t poll_rate_ms) {
-    emberAfSetLongPollIntervalMsCallback(poll_rate_ms);
-}
-
-static inline uint32_t sl_zigbee_af_get_long_poll_interval_ms_cb(void) {
-    return emberAfGetLongPollIntervalMsCallback();
 }
 #endif
 

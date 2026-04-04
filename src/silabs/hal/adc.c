@@ -388,11 +388,15 @@ uint16_t hal_adc_read_mv() {
 #else
 
 void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
+    // Current Series-1 targets in this repo are mains-powered TYZS3 switches,
+    // so there is no battery/analog path to initialize here yet.
     (void)input;
     (void)pin;
 }
 
 uint16_t hal_adc_read_mv() {
+    // Series-1 analog reads remain intentionally unsupported until the repo
+    // gains a Series-1 board that actually wires battery or external ADC input.
     return 0;
 }
 

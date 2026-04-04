@@ -17,5 +17,9 @@ void hal_system_reset(void) {
 
 void hal_factory_reset(void) {
     hal_zigbee_leave_network();
-    hal_clear_binding_table();
+#if defined(_SILICON_LABS_32B_SERIES_1)
+    emberClearBindingTable();
+#else
+    sl_zigbee_clear_binding_table();
+#endif
 }

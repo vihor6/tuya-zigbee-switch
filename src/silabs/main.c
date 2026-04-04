@@ -76,8 +76,13 @@ int main(void) {
 
     // Switch should never "long poll", as it should always be somewhat reactive
     // to ZCL commands.
-    hal_set_short_poll_interval_ms(POLLING_INTERVAL_MS);
-    hal_set_long_poll_interval_ms(POLLING_INTERVAL_MS);
+#if defined(_SILICON_LABS_32B_SERIES_1)
+    emberAfSetShortPollIntervalMsCallback(POLLING_INTERVAL_MS);
+    emberAfSetLongPollIntervalMsCallback(POLLING_INTERVAL_MS);
+#else
+    sl_zigbee_af_set_short_poll_interval_ms_cb(POLLING_INTERVAL_MS);
+    sl_zigbee_af_set_long_poll_interval_ms_cb(POLLING_INTERVAL_MS);
+#endif
 
 #if defined(SL_CATALOG_KERNEL_PRESENT)
     // Start the kernel. Task(s) created in app_init() will start running.
