@@ -2,6 +2,11 @@ name: Build Firmware
 
 on:
   workflow_dispatch:
+    inputs:
+      boards:
+        description: "Optional space-separated board keys to build. Leave empty to build all enabled boards."
+        required: false
+        default: ""
 #  push:
 #    branches:
 #      - main
@@ -56,54 +61,92 @@ jobs:
         )
 
     - name: Clear out index files
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         make tools/clean_z2m_index 
 
-    - name: Build for all boards
+    - name: Build selected boards
       run: |
         source .venv/bin/activate
-        yq -r 'to_entries | sort_by(.key)[] | "\(.key) \(.value.device_type) \(.value.build)"' device_db.yaml | while read ITER TYPE BUILD; do
+        if [ -n "${{ inputs.boards }}" ]; then
+          for ITER in ${{ inputs.boards }}; do
+            BUILD=$(yq -r ".${ITER}.build" device_db.yaml)
+            DEVICE_TYPE=$(yq -r ".${ITER}.device_type" device_db.yaml)
 
-          if [ "$BUILD" = "no" ]; then
-            echo "Skipping $ITER as building this model is disabled in the db."
-            continue
-          fi
-  
-          echo "Building for board: $ITER (router)"
-          BOARD=$ITER DEVICE_TYPE=router make board/build || exit 1
-          echo "Checking if files were created for board: $ITER (router)"
-          ls -l bin/router/$ITER/
+            if [ "$BUILD" = "no" ]; then
+              echo "Skipping $ITER as building this model is disabled in the db."
+              continue
+            fi
 
-          if [ "$TYPE" = "end_device" ]; then
-            echo "Building for board: $ITER (end_device)"
-            BOARD=${ITER} DEVICE_TYPE=end_device make board/build || exit 1
-            echo "Checking if files were created for board: $ITER (end_device)"
-            ls -l bin/end_device/${ITER}_END_DEVICE/
-          fi
-        done
+            echo "Building selected board: $ITER ($DEVICE_TYPE)"
+            BOARD=$ITER make board/build || exit 1
+
+            if [ "$DEVICE_TYPE" = "end_device" ]; then
+              echo "Checking files for board: $ITER (end_device)"
+              ls -l bin/end_device/${ITER}_END_DEVICE/
+            else
+              echo "Checking files for board: $ITER (router)"
+              ls -l bin/router/$ITER/
+            fi
+          done
+        else
+          yq -r 'to_entries | sort_by(.key)[] | "\(.key) \(.value.device_type) \(.value.build)"' device_db.yaml | while read ITER TYPE BUILD; do
+
+            if [ "$BUILD" = "no" ]; then
+              echo "Skipping $ITER as building this model is disabled in the db."
+              continue
+            fi
+
+            echo "Building for board: $ITER (router)"
+            BOARD=$ITER DEVICE_TYPE=router make board/build || exit 1
+            echo "Checking if files were created for board: $ITER (router)"
+            ls -l bin/router/$ITER/
+
+            if [ "$TYPE" = "end_device" ]; then
+              echo "Building for board: $ITER (end_device)"
+              BOARD=${ITER} DEVICE_TYPE=end_device make board/build || exit 1
+              echo "Checking if files were created for board: $ITER (end_device)"
+              ls -l bin/end_device/${ITER}_END_DEVICE/
+            fi
+          done
+        fi
+
+    - name: Upload selected build artifacts
+      if: ${{ inputs.boards != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: selected-board-builds
+        path: |
+          bin/router/**
+          bin/end_device/**
 
     - name: Update Z2M converters
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         make tools/update_converters
 
     - name: Update ZHA quirks
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         make tools/update_zha_quirk
 
     - name: Update HOMEd extensions
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         make tools/update_homed_extension
 
     - name: Update supported_devices.md
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         make tools/update_supported_devices
 
     - name: Commit changes
+      if: ${{ inputs.boards == '' }}
       run: |
         source .venv/bin/activate
         git config --global user.name "GitHub Actions"
