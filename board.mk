@@ -1,6 +1,7 @@
 # ==============================================================================
 # Configuration Variables
 # ==============================================================================
+BOARD_ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Help target
 help:
@@ -24,7 +25,7 @@ help:
 	@echo ""
 
 # Parse version from VERSION file
-VERSION_FILE_CONTENT := $(shell cat VERSION 2>/dev/null || echo "1.0.0")
+VERSION_FILE_CONTENT := $(shell cat $(BOARD_ROOT)/VERSION 2>/dev/null || echo "1.0.0")
 
 # Split semantic version
 VERSION_PARTS := $(subst ., ,$(VERSION_FILE_CONTENT))
@@ -49,11 +50,11 @@ VERSION_PATCH_HEX := $(shell printf "%02d" $(VERSION_PATCH))
 STACK_BUILD_HEX := $(shell printf "%02X" $(STACK_BUILD))
 FILE_VERSION = 0x$(VERSION_MAJOR)$(VERSION_MINOR)$(VERSION_PATCH_HEX)30$(STACK_BUILD_HEX)
 
-NVM_MIGRATIONS_VERSION := $(shell cat NVM_MIGRATIONS_VERSION 2>/dev/null || echo "1")
+NVM_MIGRATIONS_VERSION := $(shell cat $(BOARD_ROOT)/NVM_MIGRATIONS_VERSION 2>/dev/null || echo "1")
 
 PROJECT_NAME := tlc_switch
 BOARD ?= TUYA_TS0012
-DEVICE_DB_FILE := device_db.yaml
+DEVICE_DB_FILE ?= $(BOARD_ROOT)/device_db.yaml
 
 # ==============================================================================
 # Database-Derived Variables
@@ -138,7 +139,7 @@ REQUESTED_SILABS_SDK_URL := $(call silabs_catalog_field,$(REQUESTED_SILABS_SDK_L
 # ==============================================================================
 BOARD_DIR := $(BOARD)$(if $(filter end_device,$(DEVICE_TYPE)),_END_DEVICE)
 BIN_PATH := bin/$(DEVICE_TYPE)/$(BOARD_DIR)
-HELPERS_PATH := ./helper_scripts
+HELPERS_PATH := $(BOARD_ROOT)/helper_scripts
 
 # OTA Files
 ifeq ($(PLATFORM_PREFIX),silabs)

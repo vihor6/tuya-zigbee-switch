@@ -10,6 +10,8 @@ BOARD_MAKE := $(PROJECT_ROOT)/board.mk
 # SDK manifest comes from the authoritative selector contract in board.mk.
 SILABS_SDK_MANIFEST := $(shell $(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest)
 SILABS_SDK_LINES := $(foreach record,$(SILABS_SDK_MANIFEST),$(word 1,$(subst |, ,$(record))))
+sdk_record = $(strip $(shell $(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-record SDK_LINE=$(1)))
+sdk_field = $(word $(2),$(subst |, ,$(call sdk_record,$(1))))
 
 # Silicon Labs download URLs
 COMMANDER_URL := https://www.silabs.com/documents/public/software/SimplicityCommander-Linux.zip
@@ -81,19 +83,15 @@ $(1): $(TOOLS_DIR)/$(1)
 install-$(1): $(TOOLS_DIR)/$(1)
 
 $(TOOLS_DIR)/$(1): | $(DOWNLOAD_DIR)
-	@record="$$($(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-record SDK_LINE=$(1))"; \
-	version="$$(printf '%s' "$$record" | cut -d'|' -f2)"; \
-	archive="$$(printf '%s' "$$record" | cut -d'|' -f3)"; \
-	url="$$(printf '%s' "$$record" | cut -d'|' -f4)"; \
-	echo "Downloading $(1) v$$version..."; \
-	if [ ! -f "$(DOWNLOAD_DIR)/$$archive" ]; then \
-		echo "Downloading $$url"; \
-		curl -L "$$url" -o "$(DOWNLOAD_DIR)/$$archive" --fail --show-error; \
+	@echo "Downloading $(1) v$(call sdk_field,$(1),2)..."; \
+	if [ ! -f "$(DOWNLOAD_DIR)/$(call sdk_field,$(1),3)" ]; then \
+		echo "Downloading $(call sdk_field,$(1),4)"; \
+		curl -L "$(call sdk_field,$(1),4)" -o "$(DOWNLOAD_DIR)/$(call sdk_field,$(1),3)" --fail --show-error; \
 	fi; \
 	echo "Extracting $(1)..."; \
 	rm -rf "$(TOOLS_DIR)/$(1)"; \
 	mkdir -p "$(TOOLS_DIR)/$(1)"; \
-	unzip -q "$(DOWNLOAD_DIR)/$$archive" -d "$(TOOLS_DIR)/$(1)"; \
+	unzip -q "$(DOWNLOAD_DIR)/$(call sdk_field,$(1),3)" -d "$(TOOLS_DIR)/$(1)"; \
 	SDK_SUBDIR=$$(find "$(TOOLS_DIR)/$(1)" -mindepth 1 -maxdepth 1 -type d | head -1); \
 	ENTRY_COUNT=$$(find "$(TOOLS_DIR)/$(1)" -mindepth 1 -maxdepth 1 | wc -l); \
 	if [ "$$ENTRY_COUNT" = "1" ] && [ -n "$$SDK_SUBDIR" ]; then \
@@ -102,7 +100,7 @@ $(TOOLS_DIR)/$(1): | $(DOWNLOAD_DIR)
 	fi; \
 	rm -f "$(TOOLS_DIR)/spiflash_extension"; \
 	ln -s ../src/silabs/spiflash_extension "$(TOOLS_DIR)/spiflash_extension"; \
-	echo "SDK $(1) v$$version installed to $(TOOLS_DIR)/$(1)"
+	echo "SDK $(1) v$(call sdk_field,$(1),2) installed to $(TOOLS_DIR)/$(1)"
 endef
 
 $(foreach line,$(SILABS_SDK_LINES),$(eval $(call install_sdk_dir_rule,$(line))))
