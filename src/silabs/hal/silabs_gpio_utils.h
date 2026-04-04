@@ -3,7 +3,9 @@
 #include <stdint.h>
 
 #include "em_gpio.h"
+#if __has_include("sl_gpio.h")
 #include "sl_gpio.h"
+#endif
 
 #include "hal/gpio.h"
 
@@ -21,9 +23,11 @@ static inline hal_gpio_pin_t silabs_hal_gpio_make_pin(GPIO_Port_TypeDef port,
     return (hal_gpio_pin_t)(((uint16_t)port << 8) | pin_no);
 }
 
+#if __has_include("sl_gpio.h")
 static inline sl_gpio_t silabs_hal_gpio_to_sl_gpio(hal_gpio_pin_t pin) {
     return (sl_gpio_t){
                .port = silabs_hal_gpio_port(pin),
                .pin  = silabs_hal_gpio_pin_number(pin),
     };
 }
+#endif

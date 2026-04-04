@@ -1,34 +1,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-
-#if __has_include("sl_clock_manager.h")
-#include "sl_clock_manager.h"
-#else
-#include "em_cmu.h"
-#endif
-#include "sl_gpio.h"
+#include <stdio.h>
 
 #include "zigbee_app_framework_event.h"
 
 #include "hal/gpio.h"
 #include "silabs/hal/silabs_gpio_utils.h"
-#include <stdio.h>
-
-#if !__has_include("sl_clock_manager.h")
-typedef sl_zigbee_event_t     sli_zigbee_event_t;
-typedef sl_zigbee_event_t     sl_zigbee_af_event_t;
-
-#define sl_zigbee_af_event_set_active sl_zigbee_event_set_active
-
-static inline void hal_gpio_enable_clock(void) {
-    CMU_ClockEnable(cmuClock_GPIO, true);
-}
-#else
-static inline void hal_gpio_enable_clock(void) {
-    (void)sl_clock_manager_enable_bus_clock(SL_BUS_CLOCK_GPIO);
-}
-#endif
 
 // Get container structure from embedded member pointer
 #define container_of(ptr, type, member) \
@@ -37,9 +15,18 @@ static inline void hal_gpio_enable_clock(void) {
 #define LINE_MISSING     0xFF
 #define MAX_INT_LINES    16
 
+#if __has_include("sl_gpio.h")
+
+#include "sl_clock_manager.h"
+#include "sl_gpio.h"
+
 // ------ One-time init guards ------
 static bool s_gpio_clock_enabled = false;
 static bool s_gpio_inited        = false;
+
+static inline void hal_gpio_enable_clock(void) {
+    (void)sl_clock_manager_enable_bus_clock(SL_BUS_CLOCK_GPIO);
+}
 
 static void hal_gpio_ensure_clock(void) {
     if (!s_gpio_clock_enabled) {
@@ -84,7 +71,6 @@ static void free_int_slot(int32_t slot_no) {
     }
 }
 
-// Dispatchers, e.g. IRQ routinues
 static void _dispatch_regular(uint8_t intNo, void *ctx) {
     (void)intNo;
     int_slot_t *slot = (int_slot_t *)ctx;
@@ -94,7 +80,6 @@ static void _dispatch_regular(uint8_t intNo, void *ctx) {
 }
 
 static void _af_event_handler(sl_zigbee_af_event_t *event) {
-    // Get int_slot_t from embedded af_event field
     int_slot_t *slot = container_of(event, int_slot_t, af_event);
 
     if (slot->user_cb) {
@@ -102,7 +87,6 @@ static void _af_event_handler(sl_zigbee_af_event_t *event) {
     }
 }
 
-// API
 void hal_gpio_init(hal_gpio_pin_t gpio_pin, uint8_t is_input,
                    hal_gpio_pull_t pull_direction) {
     hal_gpio_ensure_clock();
@@ -112,36 +96,27 @@ void hal_gpio_init(hal_gpio_pin_t gpio_pin, uint8_t is_input,
     if (is_input) {
         switch (pull_direction) {
         case HAL_GPIO_PULL_UP:
-            sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_INPUT_PULL,
-                                 1); // DOUT=1 => pull-up
+            sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_INPUT_PULL, 1);
             break;
         case HAL_GPIO_PULL_DOWN:
-            sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_INPUT_PULL,
-                                 0); // DOUT=0 => pull-down
+            sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_INPUT_PULL, 0);
             break;
         default:
             sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_INPUT, 0);
             break;
         }
     } else {
-        // Output: push-pull, initial low
         sl_gpio_set_pin_mode(&sl_gpio, SL_GPIO_MODE_PUSH_PULL, 0);
     }
-
-    // Optional: store pull direction for interrupt polarity later.
-    // We don’t keep a global pin map; polarity is picked at registration time
-    // by looking up the slot when the user calls hal_gpio_int_callback.
 }
 
 void hal_gpio_set(hal_gpio_pin_t gpio_pin) {
     const sl_gpio_t sl_gpio = silabs_hal_gpio_to_sl_gpio(gpio_pin);
-
     sl_gpio_set_pin(&sl_gpio);
 }
 
 void hal_gpio_clear(hal_gpio_pin_t gpio_pin) {
     const sl_gpio_t sl_gpio = silabs_hal_gpio_to_sl_gpio(gpio_pin);
-
     sl_gpio_clear_pin(&sl_gpio);
 }
 
@@ -153,13 +128,6 @@ uint8_t hal_gpio_read(hal_gpio_pin_t gpio_pin) {
     return value;
 }
 
-// Register an interrupt that also attempts EM4 wake-up.
-// - Wakes from EM2/EM3 via normal EXTI (edge-sensitive).
-// - Wakes from EM4 if the pin supports EM4WU (level-sensitive).
-//   Polarity rule:
-//     * If input has pull-up  -> active-low (wake on low level).
-//     * If input has pull-down-> active-high (wake on high level).
-//     * Otherwise default to rising+falling EXTI and active-low EM4WU.
 void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
                        void *arg) {
     hal_gpio_ensure_clock();
@@ -167,7 +135,6 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
 
     const sl_gpio_t sl_gpio = silabs_hal_gpio_to_sl_gpio(gpio_pin);
 
-    // Allocate a regular EXTI line (for edge interrupts while awake)
     int32_t slot_no = alloc_int_slot();
     if (slot_no == LINE_MISSING) {
         printf("hal_gpio_callback: no free EXTI lines\r\n");
@@ -179,8 +146,6 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
     slot->arg     = arg;
     sl_zigbee_af_isr_event_init(&slot->af_event, _af_event_handler);
 
-    // Register regular edge-sensitive callback (both edges)
-
     sl_status_t status = sl_gpio_configure_external_interrupt(
         &sl_gpio, &slot->line, SL_GPIO_INTERRUPT_RISING_FALLING_EDGE,
         (sl_gpio_irq_callback_t)_dispatch_regular, slot);
@@ -188,8 +153,6 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
            (unsigned long)status);
 }
 
-// (Optional) helper to unregister an interrupt if you add
-// hal_gpio_int_disable() later
 void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
     printf("hal_gpio_unreg_callback pin %02X\r\n", gpio_pin);
 
@@ -201,6 +164,200 @@ void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
         }
     }
 }
+
+#else
+
+#include "em_cmu.h"
+#include "em_device.h"
+#include "em_gpio.h"
+#include "gpiointerrupt.h"
+
+// ------ One-time init guards ------
+static bool s_gpio_clock_enabled = false;
+static bool s_gpioint_inited     = false;
+
+static void hal_gpio_ensure_clock(void) {
+    if (!s_gpio_clock_enabled) {
+        CMU_ClockEnable(cmuClock_GPIO, true);
+        s_gpio_clock_enabled = true;
+    }
+}
+
+static void hal_gpio_ensure_gpioint(void) {
+    if (!s_gpioint_inited) {
+        GPIOINT_Init();
+        s_gpioint_inited = true;
+    }
+}
+
+// ------ Per-interrupt bookkeeping ------
+typedef struct {
+    bool             in_use;
+    uint8_t          em4wu_int_no;
+    hal_gpio_pin_t   hal_pin;
+    uint8_t          pull_dir;
+    gpio_callback_t  user_cb;
+    void *           arg;
+    sl_zigbee_event_t af_event;
+} int_slot_t;
+
+static int_slot_t s_slots[MAX_INT_LINES];
+
+static uint8_t alloc_int_line(void) {
+    for (uint8_t i = 0; i < MAX_INT_LINES; i++) {
+        if (!s_slots[i].in_use) {
+            s_slots[i].in_use = true;
+            return i;
+        }
+    }
+    return LINE_MISSING;
+}
+
+static void free_int_line(uint8_t int_no) {
+    if (int_no < MAX_INT_LINES) {
+        memset(&s_slots[int_no], 0, sizeof(s_slots[int_no]));
+    }
+}
+
+static void _dispatch_regular(uint8_t intNo, void *ctx) {
+    (void)intNo;
+    int_slot_t *slot = (int_slot_t *)ctx;
+    if (slot) {
+        sl_zigbee_event_set_active(&slot->af_event);
+    }
+}
+
+static void _dispatch_em4wu(uint8_t intNo, void *ctx) {
+    (void)intNo;
+    int_slot_t *slot = (int_slot_t *)ctx;
+    if (slot) {
+        sl_zigbee_event_set_active(&slot->af_event);
+    }
+}
+
+static void _af_event_handler(sl_zigbee_event_t *event) {
+    int_slot_t *slot = (int_slot_t *)event->data;
+    if (slot->user_cb) {
+        slot->user_cb(slot->hal_pin, slot->arg);
+    }
+}
+
+void hal_gpio_init(hal_gpio_pin_t gpio_pin, uint8_t is_input,
+                   hal_gpio_pull_t pull_direction) {
+    hal_gpio_ensure_clock();
+
+    GPIO_Port_TypeDef port    = silabs_hal_gpio_port(gpio_pin);
+    uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
+
+    if (is_input) {
+        switch (pull_direction) {
+        case HAL_GPIO_PULL_UP:
+            GPIO_PinModeSet(port, pin_num, gpioModeInputPull, 1);
+            break;
+        case HAL_GPIO_PULL_DOWN:
+            GPIO_PinModeSet(port, pin_num, gpioModeInputPull, 0);
+            break;
+        default:
+            GPIO_PinModeSet(port, pin_num, gpioModeInput, 0);
+            break;
+        }
+    } else {
+        GPIO_PinModeSet(port, pin_num, gpioModePushPull, 0);
+    }
+}
+
+void hal_gpio_set(hal_gpio_pin_t gpio_pin) {
+    GPIO_PinOutSet(silabs_hal_gpio_port(gpio_pin),
+                   silabs_hal_gpio_pin_number(gpio_pin));
+}
+
+void hal_gpio_clear(hal_gpio_pin_t gpio_pin) {
+    GPIO_PinOutClear(silabs_hal_gpio_port(gpio_pin),
+                     silabs_hal_gpio_pin_number(gpio_pin));
+}
+
+uint8_t hal_gpio_read(hal_gpio_pin_t gpio_pin) {
+    return GPIO_PinInGet(silabs_hal_gpio_port(gpio_pin),
+                         silabs_hal_gpio_pin_number(gpio_pin));
+}
+
+void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
+                       void *arg) {
+    hal_gpio_ensure_clock();
+    hal_gpio_ensure_gpioint();
+
+    GPIO_Port_TypeDef port    = silabs_hal_gpio_port(gpio_pin);
+    uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
+
+    uint8_t line = alloc_int_line();
+    if (line == LINE_MISSING) {
+        printf("hal_gpio_callback: no free EXTI lines\r\n");
+        return;
+    }
+
+    int_slot_t *slot = &s_slots[line];
+    slot->hal_pin = gpio_pin;
+    slot->user_cb = callback;
+    slot->arg     = arg;
+    sl_zigbee_af_isr_event_init(&slot->af_event, _af_event_handler);
+    slot->af_event.data = (uint32_t)slot;
+
+    GPIO_Mode_TypeDef mode = GPIO_PinModeGet(port, pin_num);
+    if (mode == gpioModeInputPull) {
+        slot->pull_dir = GPIO_PinOutGet(port, pin_num) ? HAL_GPIO_PULL_UP
+                                                       : HAL_GPIO_PULL_DOWN;
+    } else {
+        slot->pull_dir = HAL_GPIO_PULL_NONE;
+    }
+
+    unsigned int reg_int = GPIOINT_CallbackRegisterExt(
+        line, (GPIOINT_IrqCallbackPtrExt_t)_dispatch_regular, slot);
+    if (reg_int == INTERRUPT_UNAVAILABLE) {
+        free_int_line(line);
+        printf("hal_gpio_callback: interrupt unavailable\r\n");
+        return;
+    }
+    GPIO_ExtIntConfig(port, pin_num, line, true, true, true);
+
+    bool active_is_high = (slot->pull_dir == HAL_GPIO_PULL_DOWN);
+    unsigned int em4_line = GPIOINT_EM4WUCallbackRegisterExt(
+        port, pin_num, (GPIOINT_IrqCallbackPtrExt_t)_dispatch_em4wu, slot);
+    if (em4_line != INTERRUPT_UNAVAILABLE) {
+        GPIO_EM4WUExtIntConfig(port, pin_num, em4_line,
+                               active_is_high ? 1U : 0U, true);
+        slot->em4wu_int_no = em4_line;
+    } else {
+        slot->em4wu_int_no = LINE_MISSING;
+    }
+}
+
+void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
+    GPIO_Port_TypeDef port    = silabs_hal_gpio_port(gpio_pin);
+    uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
+
+    uint8_t int_no       = LINE_MISSING;
+    uint8_t em4wu_int_no = LINE_MISSING;
+    for (uint8_t i = 0; i < MAX_INT_LINES; i++) {
+        if (s_slots[i].in_use && s_slots[i].hal_pin == gpio_pin) {
+            int_no       = i;
+            em4wu_int_no = s_slots[i].em4wu_int_no;
+            break;
+        }
+    }
+
+    if (em4wu_int_no != LINE_MISSING) {
+        GPIO_EM4WUExtIntConfig(port, pin_num, em4wu_int_no, 0, false);
+        GPIOINT_EM4WUCallbackUnRegister(em4wu_int_no);
+    }
+
+    if (int_no != LINE_MISSING) {
+        GPIO_ExtIntConfig(port, pin_num, int_no, false, false, false);
+        GPIOINT_CallbackUnRegister(int_no);
+        free_int_line(int_no);
+    }
+}
+
+#endif
 
 static bool parse_pin_number(const char *s, uint8_t *pin_no) {
     if (!s || s[0] < '0' || s[0] > '9') {
