@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#if defined(EMBER_ZCL_STATUS_SUCCESS) && !defined(SL_ZIGBEE_ZCL_STATUS_SUCCESS)
+#if defined(_SILICON_LABS_32B_SERIES_1)
 #define HAL_SILABS_GECKO_SDK_COMPAT 1
 
 typedef EmberAfEndpointType      sl_zigbee_af_endpoint_type_t;
