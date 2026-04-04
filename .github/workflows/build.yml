@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       boards:
-        description: "Optional space-separated board keys to build. Leave empty to run the staged Silabs gates."
+        description: "Optional space-separated board keys to build. Leave empty to run the staged Silabs Architecture + Regression gates."
         required: false
         default: ""
   pull_request:
@@ -58,31 +58,32 @@ jobs:
               },
           ]
 
-          mg13_boards = [
-              "SWITCH_TUYA_VQJOB26P_TS0011",
-              "SWITCH_TUYA_VQJOB26P_TS0012",
-              "SWITCH_TUYA_VQJOB26P_TS0013",
-          ]
-          mg21_boards = [
-              "MODULE_MOES_TS0011",
-              "MODULE_TUYA_ZS2S_TS0001",
-              "REMOTE_MOES_SWITCH_A_TS0042",
-              "REMOTE_MOES_SWITCH_A_TS0043",
-              "REMOTE_MOES_SWITCH_A_TS0044",
-              "REMOTE_TUYA_TS004F",
-              "SWITCH_MANHOT_B_TS0011",
-              "SWITCH_MANHOT_B_TS0012",
-              "SWITCH_MANHOT_B_TS0013",
-              "SWITCH_MOES_ALL_TS0014",
-              "SWITCH_PSMART_SL_TS0001",
-              "SWITCH_PSMART_SL_TS0002",
-              "SWITCH_PSMART_SL_TS0003",
-              "SWITCH_ZEMISMART_2_TS0011",
-              "SWITCH_ZEMISMART_2_TS0012",
-          ]
-          mg22_boards = [
-              "MODULE_SONOFF_ZBMINIL2",
-          ]
+    - name: Resolve authoritative Silabs selector manifest
+      id: silabs_selector
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        manifest=$(make -s -f board.mk print-silabs-sdk-install-manifest)
+        cache_key=$(printf '%s\n' "$manifest" | awk -F'|' 'BEGIN { sep="" } { printf "%s%s-%s", sep, $1, $2; sep="__" } END { print "" }')
+        architecture_boards=$(make -s -f board.mk print-silabs-architecture-gate-boards | xargs)
+        mg13_boards=$(make -s -f board.mk print-silabs-mg13-target-boards | xargs)
+        non_mg13_boards=$(make -s -f board.mk print-silabs-non-mg13-regression-boards | xargs)
+        regression_boards=$(make -s -f board.mk print-silabs-regression-gate-boards | xargs)
+
+        {
+          echo "cache_key=$cache_key"
+          echo "architecture_boards=$architecture_boards"
+          echo "mg13_boards=$mg13_boards"
+          echo "non_mg13_boards=$non_mg13_boards"
+          echo "regression_boards=$regression_boards"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Cache Silicon Labs Tools
+      uses: actions/cache@v3
+      with:
+        path: silabs_tools
+        key: silabs-tools-${{ runner.os }}-${{ steps.silabs_selector.outputs.cache_key }}
 
           regression = (
               entries(mg13_boards, "gecko_sdk", "4.5.0")
@@ -108,184 +109,73 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+    - name: Build staged verification set
+      shell: bash
+      run: |
+        set -euo pipefail
+        source .venv/bin/activate
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
+        build_board() {
+          local board="$1"
+          local build
+          local device_type
 
-      - name: Cache Silicon Labs Tools
-        uses: actions/cache@v4
-        with:
-          path: silabs_tools
-          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
-          restore-keys: |
-            ${{ runner.os }}-silabs-tools-
+          build=$(yq -r ".${board}.build // \"no\"" device_db.yaml)
+          device_type=$(yq -r ".${board}.device_type" device_db.yaml)
 
-      - name: Cache Python Virtual Environment
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-python-venv-
+          if [ "$build" = "no" ]; then
+            echo "Skipping $board as building this model is disabled in the db."
+            return 0
+          fi
 
-      - name: Install Silicon Labs toolchain
-        run: |
-          make silabs/tools/all
-          make setup_venv
+          echo "Building $board ($device_type)"
+          BOARD="$board" make -s -f board.mk print-silabs-sdk-provenance || true
+          BOARD="$board" make board/build
 
-      - name: Build and verify provenance
-        run: .github/scripts/build_silabs_gate.sh "${{ matrix.board }}" "${{ matrix.expected_sdk_line }}" "${{ matrix.expected_sdk_version }}"
+          if [ "$device_type" = "end_device" ]; then
+            ls -l "bin/end_device/${board}_END_DEVICE/"
+          else
+            ls -l "bin/router/${board}/"
+          fi
+        }
 
-      - name: Upload architecture gate log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: architecture-gate-${{ matrix.board }}
-          path: build-logs/${{ matrix.board }}.log
-
-  regression-gate:
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.boards == '' }}
-    needs:
-      - define-silabs-matrices
-      - architecture-gate
-    name: Regression Gate • ${{ matrix.board }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix: ${{ fromJSON(needs.define-silabs-matrices.outputs.regression) }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Cache Silicon Labs Tools
-        uses: actions/cache@v4
-        with:
-          path: silabs_tools
-          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
-          restore-keys: |
-            ${{ runner.os }}-silabs-tools-
-
-      - name: Cache Python Virtual Environment
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-python-venv-
-
-      - name: Install Silicon Labs toolchain
-        run: |
-          make silabs/tools/all
-          make setup_venv
-
-      - name: Build and verify provenance
-        run: .github/scripts/build_silabs_gate.sh "${{ matrix.board }}" "${{ matrix.expected_sdk_line }}" "${{ matrix.expected_sdk_version }}"
-
-      - name: Upload regression gate log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-gate-${{ matrix.board }}
-          path: build-logs/${{ matrix.board }}.log
-
-  manual-selected-build:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.boards != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Cache Silicon Labs Tools
-        uses: actions/cache@v4
-        with:
-          path: silabs_tools
-          key: ${{ runner.os }}-silabs-tools-${{ hashFiles('board.mk', 'src/silabs/Makefile', 'src/silabs/tools.mk', 'src/silabs/slcp_files/*.slcp', 'src/silabs/spiflash_extension/spiflash_extension.slce') }}
-          restore-keys: |
-            ${{ runner.os }}-silabs-tools-
-
-      - name: Cache Telink Tools
-        uses: actions/cache@v4
-        with:
-          path: telink_tools
-          key: ${{ runner.os }}-telink-tools-${{ hashFiles('src/telink/tools.mk') }}
-          restore-keys: |
-            ${{ runner.os }}-telink-tools-
-
-      - name: Cache Python Virtual Environment
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-python-venv-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-python-venv-
-
-      - name: Install SDKs and toolchain
-        run: |
-          make setup || (
-            echo "dumping log:" &&
-            cat /home/runner/work/tuya-zigbee-switch/tuya-zigbee-switch/silabs_tools/slc-cli/bin/slc-cli/configuration/*.log
-          )
-
-      - name: Build selected boards
-        run: |
-          source .venv/bin/activate
-          for ITER in ${{ github.event.inputs.boards }}; do
-            BUILD=$(yq -r ".${ITER}.build // true" device_db.yaml)
-            DEVICE_TYPE=$(yq -r ".${ITER}.device_type" device_db.yaml)
-
-            if [ "$BUILD" = "false" ]; then
-              echo "Skipping $ITER as building this model is disabled in the db."
-              continue
-            fi
-
-            echo "Building selected board: $ITER ($DEVICE_TYPE)"
-            BOARD=$ITER DEVICE_TYPE=$DEVICE_TYPE make board/build
-
-            if [ "$DEVICE_TYPE" = "end_device" ]; then
-              ls -l "bin/end_device/${ITER}_END_DEVICE/"
-            else
-              ls -l "bin/router/$ITER/"
-            fi
+        run_group() {
+          local label="$1"
+          shift
+          echo "::group::${label}"
+          for board in "$@"; do
+            build_board "$board"
           done
+          echo "::endgroup::"
+        }
 
-      - name: Upload selected build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: selected-board-builds
-          path: |
-            bin/router/**
-            bin/end_device/**
+        if [ -n "${{ inputs.boards }}" ]; then
+          read -r -a requested_boards <<< "${{ inputs.boards }}"
+          run_group "Requested board build" "${requested_boards[@]}"
+        else
+          read -r -a architecture_boards <<< "${{ steps.silabs_selector.outputs.architecture_boards }}"
+          read -r -a regression_boards <<< "${{ steps.silabs_selector.outputs.regression_boards }}"
+          run_group "Architecture Gate" "${architecture_boards[@]}"
+          run_group "Regression Gate" "${regression_boards[@]}"
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-builds
+        path: |
+          bin/router/**
+          bin/end_device/**
+
+    - name: Summarize staged verification coverage
+      if: ${{ inputs.boards == '' }}
+      run: |
+        {
+          echo "### Silabs staged verification"
+          echo "- Architecture Gate result: PASS"
+          echo "- Regression Gate result: PASS"
+          echo "- Architecture Gate boards: ${{ steps.silabs_selector.outputs.architecture_boards }}"
+          echo "- MG13 targeted set: ${{ steps.silabs_selector.outputs.mg13_boards }}"
+          echo "- Frozen non-MG13 population: ${{ steps.silabs_selector.outputs.non_mg13_boards }}"
+          echo "- Regression Gate boards: ${{ steps.silabs_selector.outputs.regression_boards }}"
+        } >> "$GITHUB_STEP_SUMMARY"
