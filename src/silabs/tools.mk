@@ -7,10 +7,16 @@ TOOLS_DIR := $(PROJECT_ROOT)/silabs_tools
 DOWNLOAD_DIR := $(TOOLS_DIR)/downloads
 
 # Tool versions and URLs
-SIMPLICITY_SDK_VERSION := 2025.6.2
-SIMPLICITY_SDK_REPO := https://github.com/SiliconLabs/simplicity_sdk
-SIMPLICITY_SDK_ARCHIVE := simplicity-sdk-$(SIMPLICITY_SDK_VERSION).zip
-SIMPLICITY_SDK_URL := $(SIMPLICITY_SDK_REPO)/releases/download/v$(SIMPLICITY_SDK_VERSION)/simplicity-sdk.zip
+#
+# NOTE:
+# The project .slcp files pin `gecko_sdk` 4.4.6. Newer `simplicity_sdk`
+# releases dropped the EFR32MG13 device components and the Series-1
+# `emlib_adc` component used by this repo, so targeted MG13 CI builds fail
+# during `slc generate` unless we install the matching Gecko SDK release.
+SIMPLICITY_SDK_VERSION := 4.4.6
+SIMPLICITY_SDK_REPO := https://github.com/SiliconLabs/gecko_sdk
+SIMPLICITY_SDK_ARCHIVE := gecko-sdk-$(SIMPLICITY_SDK_VERSION).zip
+SIMPLICITY_SDK_URL := $(SIMPLICITY_SDK_REPO)/releases/download/v$(SIMPLICITY_SDK_VERSION)/gecko-sdk.zip
 
 # Silicon Labs download URLs
 COMMANDER_URL := https://www.silabs.com/documents/public/software/SimplicityCommander-Linux.zip
@@ -69,7 +75,8 @@ $(TOOLS_DIR):
 $(DOWNLOAD_DIR): | $(TOOLS_DIR)
 	mkdir -p $(DOWNLOAD_DIR)
 
-# Simplicity SDK from GitHub
+# Gecko SDK from GitHub (kept under the historical `simplicity_sdk` directory
+# to avoid touching the rest of the repo/tooling paths)
 simplicity_sdk: $(TOOLS_DIR)/simplicity_sdk
 	@echo "Simplicity SDK installed successfully"
 
@@ -85,10 +92,12 @@ $(TOOLS_DIR)/simplicity_sdk: | $(DOWNLOAD_DIR)
 	@rm -rf $(TOOLS_DIR)/simplicity_sdk
 	@mkdir -p $(TOOLS_DIR)/simplicity_sdk
 	@unzip -q "$(DOWNLOAD_DIR)/$(SIMPLICITY_SDK_ARCHIVE)" -d $(TOOLS_DIR)/simplicity_sdk
-	@# Move files from subdirectory if needed
-	@if [ -d "$(TOOLS_DIR)/simplicity_sdk/simplicity_sdk-$(SIMPLICITY_SDK_VERSION)" ]; then \
-		mv $(TOOLS_DIR)/simplicity_sdk/simplicity_sdk-$(SIMPLICITY_SDK_VERSION)/* $(TOOLS_DIR)/simplicity_sdk/; \
-		rmdir $(TOOLS_DIR)/simplicity_sdk/simplicity_sdk-$(SIMPLICITY_SDK_VERSION); \
+	@# Move files from a single extracted top-level directory if needed.
+	@SDK_SUBDIR=$$(find "$(TOOLS_DIR)/simplicity_sdk" -mindepth 1 -maxdepth 1 -type d | head -1); \
+	ENTRY_COUNT=$$(find "$(TOOLS_DIR)/simplicity_sdk" -mindepth 1 -maxdepth 1 | wc -l); \
+	if [ "$$ENTRY_COUNT" = "1" ] && [ -n "$$SDK_SUBDIR" ]; then \
+		mv "$$SDK_SUBDIR"/* "$(TOOLS_DIR)/simplicity_sdk/"; \
+		rmdir "$$SDK_SUBDIR"; \
 	fi
 	@echo Adding simlinkt to extensions...
 	@ln -s ../src/silabs/spiflash_extension $(TOOLS_DIR)/spiflash_extension
@@ -213,7 +222,8 @@ verify:
 	@echo "Verifying installed tools..."
 	@if [ -d "$(TOOLS_DIR)/simplicity_sdk" ]; then \
 		echo "✓ Simplicity SDK: $(TOOLS_DIR)/simplicity_sdk"; \
-		echo "  Version: $$(grep '^sdk_version:' $(TOOLS_DIR)/simplicity_sdk/simplicity_sdk.slcs 2>/dev/null | sed 's/sdk_version: "\(.*\)"/\1/' || echo 'Unknown')"; \
+		SDK_METADATA=$$(find "$(TOOLS_DIR)/simplicity_sdk" -maxdepth 1 -name '*.slcs' | head -1); \
+		echo "  Version: $$(grep '^sdk_version:' "$$SDK_METADATA" 2>/dev/null | sed 's/sdk_version: "\(.*\)"/\1/' || echo 'Unknown')"; \
 	else \
 		echo "✗ Simplicity SDK: Not installed"; \
 		exit 1; \

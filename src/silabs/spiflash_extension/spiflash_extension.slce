@@ -3,7 +3,7 @@ description: "Custom SDK Extensions"
 label: "Custom Extensions"
 version: 1.0.0
 sdk:
-  id: simplicity_sdk
-  version: 2025.6.2
+  id: gecko_sdk
+  version: 4.4.6
 component_path:
   - path: "components"

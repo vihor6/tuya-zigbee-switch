@@ -39,7 +39,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: silabs_tools
-        key: silabs-tools-2025.6.2
+        key: silabs-tools-gecko-sdk-4.4.6
 
     - name: Cache Telink Tools
       uses: actions/cache@v3
