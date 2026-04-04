@@ -4877,7 +4877,7 @@ SWITCH_TUYA_VQJOB26P_TS0011:
   firmware_image_type: 47003
   build: yes
   status: mostly_supported
-  info: TS0011 inferred from TS0012 family pattern; pinout-based support, hardware untested
+  info: "Hardware-grounded mapping: S2 only (PA1 button, PF5/PB11 relay, PF1 LED); real hardware untested"
   threads: null
   store: null
 SWITCH_TUYA_VQJOB26P_TS0012:
@@ -4904,7 +4904,7 @@ SWITCH_TUYA_VQJOB26P_TS0012:
   firmware_image_type: 47004
   build: yes
   status: mostly_supported
-  info: TS0012 confirmed; pinout-based support, hardware untested
+  info: "Hardware-grounded mapping: S1 + S3 (PD15 + PA0 buttons, A3/A5 + A2/F4 relays, PF2 + PF0 LEDs); real hardware untested"
   threads: null
   store: null
 SWITCH_TUYA_VQJOB26P_TS0013:
@@ -4931,7 +4931,7 @@ SWITCH_TUYA_VQJOB26P_TS0013:
   firmware_image_type: 47005
   build: yes
   status: mostly_supported
-  info: TS0013 inferred from TS0012 family pattern; pinout-based support, hardware untested
+  info: "Hardware-grounded mapping: S1 + S2 + S3 (PD15 + PA1 + PA0 buttons, A3/A5 + PF5/PB11 + A2/F4 relays, PF2 + PF1 + PF0 LEDs); real hardware untested"
   threads: null
   store: null
 SWITCH_ZEMISMART_1_TS0012:

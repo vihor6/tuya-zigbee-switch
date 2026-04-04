@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
 from tests.client import StubProc
@@ -14,8 +15,35 @@ def _load_device_db() -> dict:
     return yaml.safe_load(Path("device_db.yaml").read_text())
 
 
-def test_parser_supports_multidigit_and_port_f_gpio_tokens() -> None:
-    cfg = "Mfr;Model;SD15u;RF5B11;IF1i;"
+@pytest.mark.parametrize(
+    ("device_key", "switch_map"),
+    [
+        (
+            "SWITCH_TUYA_VQJOB26P_TS0011",
+            [("A1", 2, "F5", "B11", "F1")],
+        ),
+        (
+            "SWITCH_TUYA_VQJOB26P_TS0012",
+            [
+                ("D15", 3, "A3", "A5", "F2"),
+                ("A0", 4, "A2", "F4", "F0"),
+            ],
+        ),
+        (
+            "SWITCH_TUYA_VQJOB26P_TS0013",
+            [
+                ("D15", 4, "A3", "A5", "F2"),
+                ("A1", 5, "F5", "B11", "F1"),
+                ("A0", 6, "A2", "F4", "F0"),
+            ],
+        ),
+    ],
+)
+def test_vqjob26p_runtime_mappings_follow_hardware_grounded_pinout(
+    device_key: str,
+    switch_map: list[tuple[str, int, str, str, str]],
+) -> None:
+    cfg = _load_device_db()[device_key]["config_str"]
 
     with StubProc(device_config=cfg) as proc:
         device = Device(proc)
@@ -29,11 +57,26 @@ def test_parser_supports_multidigit_and_port_f_gpio_tokens() -> None:
             is not None
         )
 
-        device.press_button("D15")
-        assert device.zcl_relay_get(2) == "1"
+        for button_pin, relay_endpoint, on_pin, off_pin, indicator_pin in switch_map:
+            assert not device.get_gpio(on_pin, refresh=True)
+            assert not device.get_gpio(off_pin, refresh=True)
+            assert device.get_gpio(indicator_pin, refresh=True)
 
-        device.release_button("D15")
-        assert device.zcl_relay_get(2) == "0"
+            device.press_button(button_pin)
+            assert device.zcl_relay_get(relay_endpoint) == "1"
+            assert device.get_gpio(on_pin, refresh=True)
+            assert not device.get_gpio(off_pin, refresh=True)
+            assert not device.get_gpio(indicator_pin, refresh=True)
+
+            device.release_button(button_pin)
+            assert device.zcl_relay_get(relay_endpoint) == "0"
+            assert not device.get_gpio(on_pin, refresh=True)
+            assert device.get_gpio(off_pin, refresh=True)
+            assert device.get_gpio(indicator_pin, refresh=True)
+
+            device.step_time(50)
+            assert not device.get_gpio(on_pin, refresh=True)
+            assert not device.get_gpio(off_pin, refresh=True)
 
 
 def test_multidigit_button_pull_down_still_marks_pressed_high() -> None:
@@ -59,13 +102,13 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
             "stock_model_name": "TS0011",
             "firmware_image_type": 47003,
             "config_tokens": ["SA1u", "RF5B11", "IF1i", "M"],
-            "info_fragment": "inferred",
+            "info_fragment": "Hardware-grounded mapping: S2 only",
         },
         "SWITCH_TUYA_VQJOB26P_TS0012": {
             "stock_model_name": "TS0012",
             "firmware_image_type": 47004,
             "config_tokens": ["SD15u", "RA3A5", "IF2i", "SA0u", "RA2F4", "IF0i", "M"],
-            "info_fragment": "confirmed",
+            "info_fragment": "Hardware-grounded mapping: S1 + S3",
         },
         "SWITCH_TUYA_VQJOB26P_TS0013": {
             "stock_model_name": "TS0013",
@@ -82,7 +125,7 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
                 "IF0i",
                 "M",
             ],
-            "info_fragment": "inferred",
+            "info_fragment": "Hardware-grounded mapping: S1 + S2 + S3",
         },
     }
 
