@@ -33,6 +33,12 @@ def main() -> int:
             text,
             count=1,
         )
+        if "id: sl_system_compatibility" not in text:
+            text = text.replace(
+                "- {id: toolchain_gcc}\n",
+                "- {id: toolchain_gcc}\n- {id: sl_system_compatibility}\n",
+                1,
+            )
 
     target_path = pathlib.Path(target)
     target_path.parent.mkdir(parents=True, exist_ok=True)
