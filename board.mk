@@ -105,36 +105,6 @@ REQUESTED_SILABS_SDK_VERSION := $(call silabs_sdk_version,$(REQUESTED_SILABS_SDK
 REQUESTED_SILABS_SDK_ARCHIVE := $(call silabs_sdk_archive,$(REQUESTED_SILABS_SDK_LINE))
 REQUESTED_SILABS_SDK_URL := $(call silabs_sdk_url,$(REQUESTED_SILABS_SDK_LINE))
 
-SILABS_MG13_TARGET_BOARDS := \
-	SWITCH_TUYA_VQJOB26P_TS0011 \
-	SWITCH_TUYA_VQJOB26P_TS0012 \
-	SWITCH_TUYA_VQJOB26P_TS0013
-
-SILABS_NON_MG13_REGRESSION_BOARDS := \
-	MODULE_MOES_TS0011 \
-	MODULE_TUYA_ZS2S_TS0001 \
-	REMOTE_MOES_SWITCH_A_TS0042 \
-	REMOTE_MOES_SWITCH_A_TS0043 \
-	REMOTE_MOES_SWITCH_A_TS0044 \
-	REMOTE_TUYA_TS004F \
-	SWITCH_MANHOT_B_TS0011 \
-	SWITCH_MANHOT_B_TS0012 \
-	SWITCH_MANHOT_B_TS0013 \
-	SWITCH_MOES_ALL_TS0014 \
-	SWITCH_PSMART_SL_TS0001 \
-	SWITCH_PSMART_SL_TS0002 \
-	SWITCH_PSMART_SL_TS0003 \
-	SWITCH_ZEMISMART_2_TS0011 \
-	SWITCH_ZEMISMART_2_TS0012 \
-	MODULE_SONOFF_ZBMINIL2
-
-SILABS_ARCHITECTURE_GATE_BOARDS := \
-	SWITCH_TUYA_VQJOB26P_TS0013 \
-	MODULE_TUYA_ZS2S_TS0001 \
-	MODULE_SONOFF_ZBMINIL2
-
-SILABS_REGRESSION_GATE_BOARDS := $(SILABS_MG13_TARGET_BOARDS) $(SILABS_NON_MG13_REGRESSION_BOARDS)
-
 # ==============================================================================
 # Path Variables
 # ==============================================================================
@@ -288,16 +258,4 @@ print-silabs-sdk-provenance: assert-silabs-sdk-selector
 	@printf 'BOARD=%s MCU=%s SDK_LINE=%s SDK_VERSION=%s\n' \
 		"$(BOARD)" "$(MCU)" "$(SILABS_SDK_LINE)" "$(SILABS_SDK_VERSION)"
 
-print-silabs-architecture-gate-boards:
-	@printf '%s\n' $(SILABS_ARCHITECTURE_GATE_BOARDS)
-
-print-silabs-mg13-target-boards:
-	@printf '%s\n' $(SILABS_MG13_TARGET_BOARDS)
-
-print-silabs-non-mg13-regression-boards:
-	@printf '%s\n' $(SILABS_NON_MG13_REGRESSION_BOARDS)
-
-print-silabs-regression-gate-boards:
-	@printf '%s\n' $(SILABS_REGRESSION_GATE_BOARDS)
-
-.PHONY: help build build-firmware drop-old-files generate-ota-files generate-normal-ota generate-tuya-ota generate-force-ota update-indexes clean_z2m_index update_converters update_zha_quirk update_homed_extension update_supported_devices freeze_ota_links assert-silabs-sdk-selector assert-requested-silabs-sdk-line print-silabs-sdk-record print-silabs-sdk-install-manifest print-silabs-sdk-cache-key print-silabs-sdk-provenance print-silabs-architecture-gate-boards print-silabs-mg13-target-boards print-silabs-non-mg13-regression-boards print-silabs-regression-gate-boards
+.PHONY: help build build-firmware drop-old-files generate-ota-files generate-normal-ota generate-tuya-ota generate-force-ota update-indexes clean_z2m_index update_converters update_zha_quirk update_homed_extension update_supported_devices freeze_ota_links assert-silabs-sdk-selector assert-requested-silabs-sdk-line print-silabs-sdk-record print-silabs-sdk-install-manifest print-silabs-sdk-cache-key print-silabs-sdk-provenance
