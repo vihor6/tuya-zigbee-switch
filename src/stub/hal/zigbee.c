@@ -36,6 +36,8 @@ static uint32_t poll_rate_ms = 0;
 static stub_binding_t bindings[MAX_BINDINGS];
 static int            binding_count = 0;
 
+void stub_zigbee_clear_bindings(void);
+
 void hal_zigbee_init(hal_zigbee_endpoint *ep_list, uint8_t ep_count) {
     if (!ep_list && ep_count > 0) {
         io_log("ZIGBEE", "Error: NULL endpoint list with non-zero count %d",
@@ -144,6 +146,17 @@ void hal_zigbee_set_poll_rate_ms(uint32_t new_poll_rate_ms) {
 
 uint32_t hal_zigbee_get_poll_rate_ms(void) {
     return poll_rate_ms;
+}
+
+void hal_zigbee_apply_startup_poll_intervals(uint32_t new_poll_rate_ms) {
+    hal_zigbee_set_poll_rate_ms(new_poll_rate_ms);
+}
+
+void hal_zigbee_clear_binding_table(void) {
+    stub_zigbee_clear_bindings();
+}
+
+void hal_zigbee_drop_old_ota_image_if_any(void) {
 }
 
 void hal_zigbee_notify_attribute_changed(uint8_t endpoint, uint16_t cluster_id,

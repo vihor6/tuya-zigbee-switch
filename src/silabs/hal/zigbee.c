@@ -4,6 +4,7 @@
 #include "app/framework/plugin/ota-client/ota-client.h"
 #include "network-steering.h"
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #if defined(_SILICON_LABS_32B_SERIES_1)
@@ -72,13 +73,52 @@ static inline sl_status_t sl_zigbee_send_device_announcement(void) {
     return (sl_status_t)emberSendDeviceAnnouncement();
 }
 
-static inline void sl_zigbee_af_set_long_poll_interval_ms_cb(
-    uint32_t poll_rate_ms) {
-    (void)poll_rate_ms;
+static inline void hal_silabs_set_short_poll_interval_ms(uint32_t poll_rate_ms) {
+    emberAfSetShortPollIntervalMsCallback((uint16_t)poll_rate_ms);
 }
 
-static inline uint32_t sl_zigbee_af_get_long_poll_interval_ms_cb(void) {
-    return 0;
+static inline void hal_silabs_set_long_poll_interval_ms(uint32_t poll_rate_ms) {
+    emberAfSetLongPollIntervalMsCallback(poll_rate_ms);
+}
+
+static inline uint32_t hal_silabs_get_current_poll_interval_ms(void) {
+    return emberAfGetCurrentPollIntervalMsCallback();
+}
+
+static inline void hal_silabs_clear_binding_table(void) {
+    (void)emberClearBindingTable();
+}
+
+static inline uint32_t hal_silabs_ota_storage_get_last_offset(void) {
+    return emberAfOtaStorageDriverRetrieveLastStoredOffsetCallback();
+}
+
+static inline void hal_silabs_ota_storage_clear_temp_data(void) {
+    emberAfOtaStorageClearTempDataCallback();
+}
+#else
+static inline void hal_silabs_set_short_poll_interval_ms(uint32_t poll_rate_ms) {
+    sl_zigbee_af_set_short_poll_interval_ms_cb((uint16_t)poll_rate_ms);
+}
+
+static inline void hal_silabs_set_long_poll_interval_ms(uint32_t poll_rate_ms) {
+    sl_zigbee_af_set_long_poll_interval_ms_cb(poll_rate_ms);
+}
+
+static inline uint32_t hal_silabs_get_current_poll_interval_ms(void) {
+    return sl_zigbee_af_get_current_poll_interval_ms_cb();
+}
+
+static inline void hal_silabs_clear_binding_table(void) {
+    sl_zigbee_clear_binding_table();
+}
+
+static inline uint32_t hal_silabs_ota_storage_get_last_offset(void) {
+    return sl_zigbee_af_ota_storage_driver_retrieve_last_stored_offset_cb();
+}
+
+static inline void hal_silabs_ota_storage_clear_temp_data(void) {
+    sl_zigbee_af_ota_storage_clear_temp_data_cb();
 }
 #endif
 
@@ -486,7 +526,7 @@ void hal_zigbee_set_poll_rate_ms(uint32_t poll_rate_ms) {
     }
     // Only set the long poll interval, keep short poll managed by
     // SDK itself for Silabs
-    sl_zigbee_af_set_long_poll_interval_ms_cb(poll_rate_ms);
+    hal_silabs_set_long_poll_interval_ms(poll_rate_ms);
 }
 
 uint32_t hal_zigbee_get_poll_rate_ms(void) {
@@ -494,7 +534,28 @@ uint32_t hal_zigbee_get_poll_rate_ms(void) {
         return 0;
     }
 
-    return sl_zigbee_af_get_long_poll_interval_ms_cb();
+    return hal_silabs_get_current_poll_interval_ms();
+}
+
+void hal_zigbee_apply_startup_poll_intervals(uint32_t poll_rate_ms) {
+    hal_silabs_set_short_poll_interval_ms(poll_rate_ms);
+    hal_silabs_set_long_poll_interval_ms(poll_rate_ms);
+}
+
+void hal_zigbee_clear_binding_table(void) {
+    hal_silabs_clear_binding_table();
+}
+
+void hal_zigbee_drop_old_ota_image_if_any(void) {
+    uint32_t current_offset = hal_silabs_ota_storage_get_last_offset();
+
+    if (current_offset == 0U) {
+        return;
+    }
+
+    printf("Dropping old OTA image, current offset: %lu\n",
+           (unsigned long)current_offset);
+    hal_silabs_ota_storage_clear_temp_data();
 }
 
 void hal_zigbee_init_ota() {

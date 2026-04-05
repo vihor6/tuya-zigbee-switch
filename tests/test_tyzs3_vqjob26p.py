@@ -36,6 +36,21 @@ def test_parser_supports_multidigit_and_port_f_gpio_tokens() -> None:
         assert device.zcl_relay_get(2) == "0"
 
 
+def test_parser_uses_pull_direction_for_multidigit_switch_polarity() -> None:
+    cfg = "Mfr;Model;SD15d;RF5B11;IF1i;"
+
+    with StubProc(device_config=cfg) as proc:
+        device = Device(proc)
+
+        assert device.zcl_relay_get(2) == "0"
+
+        device.press_button("D15")
+        assert device.zcl_relay_get(2) == "1"
+
+        device.release_button("D15")
+        assert device.zcl_relay_get(2) == "0"
+
+
 def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
     db = _load_device_db()
 
@@ -44,13 +59,13 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
             "stock_model_name": "TS0011",
             "firmware_image_type": 47003,
             "config_tokens": ["SA1u", "RF5B11", "IF1i", "M"],
-            "info_fragment": "inferred",
+            "info_fragments": ["S2=PA1", "K2=PF5/PB11", "LED=PF1"],
         },
         "SWITCH_TUYA_VQJOB26P_TS0012": {
             "stock_model_name": "TS0012",
             "firmware_image_type": 47004,
             "config_tokens": ["SD15u", "RA3A5", "IF2i", "SA0u", "RA2F4", "IF0i", "M"],
-            "info_fragment": "confirmed",
+            "info_fragments": ["S1=PD15", "S3=PA0", "K1=PA3/PA5", "K3=PA2/PF4"],
         },
         "SWITCH_TUYA_VQJOB26P_TS0013": {
             "stock_model_name": "TS0013",
@@ -67,7 +82,7 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
                 "IF0i",
                 "M",
             ],
-            "info_fragment": "inferred",
+            "info_fragments": ["S1=PD15", "S2=PA1", "S3=PA0", "PF2/PF1/PF0"],
         },
     }
 
@@ -86,7 +101,12 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
         assert entry["mcu"] == "EFR32MG13P732F512GM48"
         assert entry["firmware_image_type"] == entry_expectation["firmware_image_type"]
         assert entry["status"] == "mostly_supported"
-        assert entry_expectation["info_fragment"] in entry["info"]
+        assert "pinout grounded" in entry["info"]
+        assert "hardware untested" in entry["info"]
+        assert "inferred" not in entry["info"]
+        assert "confirmed" not in entry["info"]
+        for fragment in entry_expectation["info_fragments"]:
+            assert fragment in entry["info"]
 
         config_parts = [part for part in entry["config_str"].split(";") if part]
         assert config_parts[0] == "vqjob26p"

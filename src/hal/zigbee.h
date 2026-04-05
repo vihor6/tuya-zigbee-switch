@@ -199,6 +199,15 @@ void hal_zigbee_set_poll_rate_ms(uint32_t poll_rate_ms);
  */
 uint32_t hal_zigbee_get_poll_rate_ms(void);
 
+/** Apply startup poll intervals before the stack is fully initialized. */
+void hal_zigbee_apply_startup_poll_intervals(uint32_t poll_rate_ms);
+
+/** Clear all local bindings as part of a factory reset. */
+void hal_zigbee_clear_binding_table(void);
+
+/** Drop any partially-downloaded OTA image so FORCE OTA can be retried. */
+void hal_zigbee_drop_old_ota_image_if_any(void);
+
 /** Find cluster definition by endpoint and cluster ID */
 static inline hal_zigbee_cluster *
 hal_zigbee_find_cluster(hal_zigbee_endpoint *endpoints, uint8_t endpoints_count,

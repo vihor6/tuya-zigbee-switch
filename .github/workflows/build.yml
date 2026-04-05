@@ -1,159 +1,310 @@
 name: Build Firmware
 
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       boards:
-        description: "Optional space-separated board keys to build. Leave empty to build all enabled boards."
+        description: "Optional space-separated board keys to build manually. Leave empty to run the Silabs gate pipeline."
         required: false
         default: ""
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-#    branches:
-#      - main
 
 jobs:
-  build:
+  define_silabs_plan:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
     runs-on: ubuntu-latest
-
+    outputs:
+      architecture_boards: ${{ steps.plan.outputs.architecture_boards }}
+      regression_boards: ${{ steps.plan.outputs.regression_boards }}
+      manifest_hash: ${{ steps.plan.outputs.manifest_hash }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0  
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y make python3 yq unzip wget gcc-arm-none-eabi
+      - name: Install planning dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make yq
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 21
+      - name: Define Silabs plan
+        id: plan
+        run: |
+          architecture_boards="$(make -s -f board.mk print-silabs-architecture-gate-boards)"
+          regression_boards="$(make -s -f board.mk print-silabs-regression-gate-boards)"
+          manifest="$(make -s -f board.mk print-silabs-sdk-install-manifest)"
+          ARCHITECTURE_BOARDS="${architecture_boards}" \
+          REGRESSION_BOARDS="${regression_boards}" \
+          MANIFEST="${manifest}" \
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib
+          import json
+          import os
 
-    - name: Cache Silicon Labs Tools
-      uses: actions/cache@v3
-      with:
-        path: silabs_tools
-        key: silabs-tools-gecko-sdk-4.4.6
+          def as_json(raw: str) -> str:
+              return json.dumps([line for line in raw.splitlines() if line.strip()])
 
-    - name: Cache Telink Tools
-      uses: actions/cache@v3
-      with:
-        path: telink_tools
-        key: telink-tools-v3.7.2.0
+          architecture = os.environ["ARCHITECTURE_BOARDS"]
+          regression = os.environ["REGRESSION_BOARDS"]
+          manifest = os.environ["MANIFEST"]
 
-    - name: Cache Python Virtual Environment
-      uses: actions/cache@v3
-      with:
-        path: .venv
-        key: python-venv-${{ hashFiles('requirements.txt') }}
+          print(f"architecture_boards={as_json(architecture)}")
+          print(f"regression_boards={as_json(regression)}")
+          print(f"manifest_hash={hashlib.sha256(manifest.encode()).hexdigest()}")
+          PY
 
-    - name: Install SDK and Toolchain
-      run: |
-        make setup || (
-          echo "dumping log:" &&
-          cat /home/runner/work/tuya-zigbee-switch/tuya-zigbee-switch/silabs_tools/slc-cli/bin/slc-cli/configuration/*.log
-        )
+  architecture_gate:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
+    needs: define_silabs_plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Clear out index files
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/clean_z2m_index 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
 
-    - name: Build selected boards
-      run: |
-        source .venv/bin/activate
-        if [ -n "${{ inputs.boards }}" ]; then
-          for ITER in ${{ inputs.boards }}; do
-            BUILD=$(yq -r ".${ITER}.build" device_db.yaml)
-            DEVICE_TYPE=$(yq -r ".${ITER}.device_type" device_db.yaml)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
 
-            if [ "$BUILD" = "no" ]; then
-              echo "Skipping $ITER as building this model is disabled in the db."
+      - name: Restore Silicon Labs tools cache
+        uses: actions/cache@v4
+        with:
+          path: silabs_tools
+          key: silabs-tools-${{ runner.os }}-${{ needs.define_silabs_plan.outputs.manifest_hash }}
+
+      - name: Restore Python virtualenv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python requirements
+        run: |
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Install Silicon Labs tools
+        run: |
+          . .venv/bin/activate
+          make silabs/tools/all
+
+      - name: Clear OTA indexes
+        run: |
+          . .venv/bin/activate
+          make tools/clean_z2m_index
+
+      - name: Build architecture gate boards
+        env:
+          ARCHITECTURE_BOARDS_JSON: ${{ needs.define_silabs_plan.outputs.architecture_boards }}
+        run: |
+          . .venv/bin/activate
+          python3 - <<'PY' > architecture_boards.txt
+          import json
+          import os
+          for board in json.loads(os.environ["ARCHITECTURE_BOARDS_JSON"]):
+              print(board)
+          PY
+          while read -r board; do
+            [ -n "$board" ] || continue
+            .github/scripts/build_silabs_gate.sh "$board" artifacts/architecture_gate
+          done < architecture_boards.txt
+
+      - name: Upload architecture gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-gate-artifacts
+          path: |
+            artifacts/architecture_gate/**
+            bin/router/**
+            bin/end_device/**
+
+  regression_gate:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
+    needs: [define_silabs_plan, architecture_gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Restore Silicon Labs tools cache
+        uses: actions/cache@v4
+        with:
+          path: silabs_tools
+          key: silabs-tools-${{ runner.os }}-${{ needs.define_silabs_plan.outputs.manifest_hash }}
+
+      - name: Restore Python virtualenv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python requirements
+        run: |
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Install Silicon Labs tools
+        run: |
+          . .venv/bin/activate
+          make silabs/tools/all
+
+      - name: Clear OTA indexes
+        run: |
+          . .venv/bin/activate
+          make tools/clean_z2m_index
+
+      - name: Build regression gate boards
+        env:
+          REGRESSION_BOARDS_JSON: ${{ needs.define_silabs_plan.outputs.regression_boards }}
+        run: |
+          . .venv/bin/activate
+          python3 - <<'PY' > regression_boards.txt
+          import json
+          import os
+          for board in json.loads(os.environ["REGRESSION_BOARDS_JSON"]):
+              print(board)
+          PY
+          while read -r board; do
+            [ -n "$board" ] || continue
+            .github/scripts/build_silabs_gate.sh "$board" artifacts/regression_gate
+          done < regression_boards.txt
+
+      - name: Upload regression gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-gate-artifacts
+          path: |
+            artifacts/regression_gate/**
+            bin/router/**
+            bin/end_device/**
+
+  summarize_silabs_gates:
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.boards == '') }}
+    needs: [architecture_gate, regression_gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize gate status
+        run: |
+          {
+            echo "## Silabs gate summary"
+            echo ""
+            echo "- architecture_gate: ${{ needs.architecture_gate.result }}"
+            echo "- regression_gate: ${{ needs.regression_gate.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "${{ needs.architecture_gate.result }}" = "success"
+          test "${{ needs.regression_gate.result }}" = "success"
+
+  manual_selected_build:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.boards != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Restore Python virtualenv cache
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: python-venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python requirements
+        run: |
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          . .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Install toolchains for selected boards
+        env:
+          SELECTED_BOARDS: ${{ inputs.boards }}
+        run: |
+          . .venv/bin/activate
+          need_silabs=0
+          need_telink=0
+          for board in ${SELECTED_BOARDS}; do
+            family="$(yq -r ".${board}.mcu_family" device_db.yaml)"
+            case "${family}" in
+              Silabs) need_silabs=1 ;;
+              Telink) need_telink=1 ;;
+            esac
+          done
+          if [ "${need_silabs}" -eq 1 ]; then
+            make silabs/tools/all
+          fi
+          if [ "${need_telink}" -eq 1 ]; then
+            make telink/tools/all
+          fi
+
+      - name: Build selected boards
+        env:
+          SELECTED_BOARDS: ${{ inputs.boards }}
+        run: |
+          . .venv/bin/activate
+          mkdir -p artifacts/manual_selected
+          for board in ${SELECTED_BOARDS}; do
+            build_enabled="$(yq -r ".${board}.build" device_db.yaml)"
+            if [ "${build_enabled}" != "yes" ]; then
+              echo "Skipping ${board}: build disabled"
               continue
             fi
-
-            echo "Building selected board: $ITER ($DEVICE_TYPE)"
-            BOARD=$ITER make board/build || exit 1
-
-            if [ "$DEVICE_TYPE" = "end_device" ]; then
-              echo "Checking files for board: $ITER (end_device)"
-              ls -l bin/end_device/${ITER}_END_DEVICE/
+            family="$(yq -r ".${board}.mcu_family" device_db.yaml)"
+            if [ "${family}" = "Silabs" ]; then
+              .github/scripts/build_silabs_gate.sh "${board}" artifacts/manual_selected
             else
-              echo "Checking files for board: $ITER (router)"
-              ls -l bin/router/$ITER/
+              BOARD="${board}" make board/build 2>&1 | tee "artifacts/manual_selected/${board}.log"
             fi
           done
-        else
-          yq -r 'to_entries | sort_by(.key)[] | "\(.key) \(.value.device_type) \(.value.build)"' device_db.yaml | while read ITER TYPE BUILD; do
 
-            if [ "$BUILD" = "no" ]; then
-              echo "Skipping $ITER as building this model is disabled in the db."
-              continue
-            fi
-
-            echo "Building for board: $ITER (router)"
-            BOARD=$ITER DEVICE_TYPE=router make board/build || exit 1
-            echo "Checking if files were created for board: $ITER (router)"
-            ls -l bin/router/$ITER/
-
-            if [ "$TYPE" = "end_device" ]; then
-              echo "Building for board: $ITER (end_device)"
-              BOARD=${ITER} DEVICE_TYPE=end_device make board/build || exit 1
-              echo "Checking if files were created for board: $ITER (end_device)"
-              ls -l bin/end_device/${ITER}_END_DEVICE/
-            fi
-          done
-        fi
-
-    - name: Upload selected build artifacts
-      if: ${{ inputs.boards != '' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: selected-board-builds
-        path: |
-          bin/router/**
-          bin/end_device/**
-
-    - name: Update Z2M converters
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_converters
-
-    - name: Update ZHA quirks
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_zha_quirk
-
-    - name: Update HOMEd extensions
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_homed_extension
-
-    - name: Update supported_devices.md
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        make tools/update_supported_devices
-
-    - name: Commit changes
-      if: ${{ inputs.boards == '' }}
-      run: |
-        source .venv/bin/activate
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add bin/* zigbee2mqtt/* zha/* homed/* docs/supported_devices.md
-        git diff --cached --quiet || git commit -m "Update firmware files, converters, quirks, extensions and supported devices list"
-        make tools/freeze_ota_links
-        git add zigbee2mqtt/*
-        git diff --cached --quiet || git commit -m "Freeze links in OTA index files"
-        git push
+      - name: Upload selected build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: selected-board-builds
+          path: |
+            artifacts/manual_selected/**
+            bin/router/**
+            bin/end_device/**

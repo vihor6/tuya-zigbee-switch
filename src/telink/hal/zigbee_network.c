@@ -192,6 +192,16 @@ uint32_t hal_zigbee_get_poll_rate_ms(void) {
     return zb_getPollRate();
 }
 
+void hal_zigbee_apply_startup_poll_intervals(uint32_t poll_rate_ms) {
+    hal_zigbee_set_poll_rate_ms(poll_rate_ms);
+}
+
+void hal_zigbee_clear_binding_table(void) {
+}
+
+void hal_zigbee_drop_old_ota_image_if_any(void) {
+}
+
 // Internal interface functions
 
 void telink_zigbee_hal_network_init(void) {

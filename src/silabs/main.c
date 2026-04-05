@@ -33,20 +33,6 @@
 // TODO: make configurable via ZCL
 #define POLLING_INTERVAL_MS    100
 
-void drop_old_ota_image_if_any() {
-#if !defined(_SILICON_LABS_32B_SERIES_1)
-    // Drop old OTA image if any exists
-    // Allows to re-download FORCE image multiple times
-    uint32_t currentOffset =
-        sl_zigbee_af_ota_storage_driver_retrieve_last_stored_offset_cb();
-
-    if (currentOffset > 0) {
-        printf("Dropping old OTA image, current offset: %lu\n", currentOffset);
-        sl_zigbee_af_ota_storage_clear_temp_data_cb();
-    }
-#endif
-}
-
 int main(void) {
     // Initialize Silicon Labs device, system, service(s) and protocol stack(s).
     // Note that if the kernel is present, processing task(s) will be created by
@@ -55,14 +41,11 @@ int main(void) {
 
     app_init();
 
-    drop_old_ota_image_if_any();
+    hal_zigbee_drop_old_ota_image_if_any();
 
     // Switch should never "long poll", as it should always be somewhat reactive
     // to ZCL commands.
-#if !defined(_SILICON_LABS_32B_SERIES_1)
-    sl_zigbee_af_set_short_poll_interval_ms_cb(POLLING_INTERVAL_MS);
-    sl_zigbee_af_set_long_poll_interval_ms_cb(POLLING_INTERVAL_MS);
-#endif
+    hal_zigbee_apply_startup_poll_intervals(POLLING_INTERVAL_MS);
 
 #if defined(SL_CATALOG_KERNEL_PRESENT)
     // Start the kernel. Task(s) created in app_init() will start running.

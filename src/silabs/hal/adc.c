@@ -288,6 +288,191 @@ uint16_t hal_adc_read_mv() {
     return hal_adc_read_pin_mv(s_adc_pin);
 }
 
+#elif defined(_SILICON_LABS_32B_SERIES_1)
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "em_adc.h"
+#include "em_cmu.h"
+#include "em_gpio.h"
+
+#include "silabs/hal/silabs_gpio_utils.h"
+
+#define ADC_RESULT_MAX            0x0FFFUL
+#define ADC_AVDD_REFERENCE_MV     5000UL
+#define ADC_SINGLE_TIMEOUT_LOOPS  1000000UL
+
+static hal_gpio_pin_t  s_adc_pin   = HAL_INVALID_PIN;
+static hal_adc_input_t s_adc_input = HAL_ADC_INPUT_PIN;
+static bool            s_adc_ready = false;
+
+static uint16_t hal_adc_raw_to_mv(uint32_t raw, uint32_t full_scale_mv) {
+    return (uint16_t)((raw * full_scale_mv + (ADC_RESULT_MAX / 2U)) /
+                      ADC_RESULT_MAX);
+}
+
+static void hal_adc_enable_clocks(void) {
+    CMU_ClockEnable(cmuClock_HFPER, true);
+    CMU_ClockEnable(cmuClock_GPIO, true);
+    CMU_ClockEnable(cmuClock_ADC0, true);
+}
+
+static void hal_adc_shutdown(void) {
+    ADC_IntClear(ADC0, _ADC_IF_MASK);
+    ADC_Reset(ADC0);
+    CMU_ClockEnable(cmuClock_ADC0, false);
+}
+
+static bool hal_adc_series1_pin_to_pos_sel(hal_gpio_pin_t pin,
+                                           ADC_PosSel_TypeDef *pos_sel) {
+    GPIO_Port_TypeDef port        = silabs_hal_gpio_port(pin);
+    uint8_t           pin_no      = silabs_hal_gpio_pin_number(pin);
+    uint8_t           channel     = pin_no;
+    ADC_PosSel_TypeDef base_sel   = adcPosSelAVDD;
+    bool              second_port = false;
+
+    if (pin_no > 15U || pos_sel == NULL) {
+        return false;
+    }
+
+    switch (port) {
+#if (GPIO_PA_COUNT > 0)
+    case gpioPortA:
+        base_sel = adcPosSelAPORT1XCH0;
+        break;
+#endif
+#if (GPIO_PB_COUNT > 0)
+    case gpioPortB:
+        base_sel   = adcPosSelAPORT1XCH0;
+        second_port = true;
+        break;
+#endif
+#if (GPIO_PC_COUNT > 0)
+    case gpioPortC:
+        base_sel = adcPosSelAPORT2YCH0;
+        break;
+#endif
+#if (GPIO_PD_COUNT > 0)
+    case gpioPortD:
+        base_sel   = adcPosSelAPORT2YCH0;
+        second_port = true;
+        break;
+#endif
+#if (GPIO_PE_COUNT > 0)
+    case gpioPortE:
+        base_sel = adcPosSelAPORT3XCH0;
+        break;
+#endif
+#if (GPIO_PF_COUNT > 0)
+    case gpioPortF:
+        base_sel   = adcPosSelAPORT3XCH0;
+        second_port = true;
+        break;
+#endif
+    default:
+        return false;
+    }
+
+    if (second_port) {
+        channel = (uint8_t)(channel + 16U);
+    }
+
+    *pos_sel = (ADC_PosSel_TypeDef)(base_sel + channel);
+    return true;
+}
+
+static bool hal_adc_prepare_external_pin(hal_gpio_pin_t pin,
+                                         ADC_PosSel_TypeDef *pos_sel) {
+    GPIO_Port_TypeDef port   = silabs_hal_gpio_port(pin);
+    uint8_t           pin_no = silabs_hal_gpio_pin_number(pin);
+
+    if (!hal_adc_series1_pin_to_pos_sel(pin, pos_sel)) {
+        return false;
+    }
+
+    GPIO_PinModeSet(port, pin_no, gpioModeDisabled, 0);
+    return true;
+}
+
+static uint16_t hal_adc_read_single_raw(ADC_PosSel_TypeDef pos_sel,
+                                        ADC_Ref_TypeDef reference) {
+    ADC_Init_TypeDef       init        = ADC_INIT_DEFAULT;
+    ADC_InitSingle_TypeDef init_single = ADC_INITSINGLE_DEFAULT;
+    uint32_t               timeout     = ADC_SINGLE_TIMEOUT_LOOPS;
+    uint16_t               raw         = 0;
+
+    hal_adc_enable_clocks();
+
+    init.timebase = ADC_TimebaseCalc(0);
+    init.prescale = ADC_PrescaleCalc(1000000, 0);
+
+    init_single.posSel     = pos_sel;
+    init_single.negSel     = adcNegSelVSS;
+    init_single.reference  = reference;
+    init_single.acqTime    = adcAcqTime32;
+    init_single.resolution = adcRes12Bit;
+
+    ADC_Init(ADC0, &init);
+    ADC_InitSingle(ADC0, &init_single);
+    ADC_IntClear(ADC0, _ADC_IF_MASK);
+    ADC_Start(ADC0, adcStartSingle);
+
+    while (((ADC_IntGet(ADC0) & ADC_IF_SINGLE) == 0U) && (timeout > 0U)) {
+        timeout--;
+    }
+
+    if (timeout == 0U) {
+        hal_adc_shutdown();
+        return 0;
+    }
+
+    raw = ADC_DataSingleGet(ADC0);
+    hal_adc_shutdown();
+    return raw;
+}
+
+static uint16_t hal_adc_read_supply_mv(void) {
+    uint16_t raw = hal_adc_read_single_raw(adcPosSelAVDD, adcRef5V);
+    return hal_adc_raw_to_mv(raw, ADC_AVDD_REFERENCE_MV);
+}
+
+static uint16_t hal_adc_read_pin_mv(hal_gpio_pin_t pin) {
+    ADC_PosSel_TypeDef pos_sel;
+    uint16_t           avdd_mv;
+    uint16_t           raw;
+
+    if (pin == HAL_INVALID_PIN || !hal_adc_prepare_external_pin(pin, &pos_sel)) {
+        return 0;
+    }
+
+    avdd_mv = hal_adc_read_supply_mv();
+    if (avdd_mv == 0U) {
+        return 0;
+    }
+
+    raw = hal_adc_read_single_raw(pos_sel, adcRefVDD);
+    return hal_adc_raw_to_mv(raw, avdd_mv);
+}
+
+void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
+    s_adc_input = input;
+    s_adc_pin   = pin;
+    s_adc_ready = true;
+}
+
+uint16_t hal_adc_read_mv() {
+    if (!s_adc_ready) {
+        return 0;
+    }
+
+    if (s_adc_input == HAL_ADC_INPUT_VBAT) {
+        return hal_adc_read_supply_mv();
+    }
+
+    return hal_adc_read_pin_mv(s_adc_pin);
+}
+
 #else
 
 void hal_adc_init(hal_adc_input_t input, hal_gpio_pin_t pin) {
