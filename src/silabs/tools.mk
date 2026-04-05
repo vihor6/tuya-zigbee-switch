@@ -41,7 +41,7 @@ $(DOWNLOAD_DIR): | $(TOOLS_DIR)
 
 sdk-all: | $(DOWNLOAD_DIR)
 	@set -e; \
-	$(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
+	$(MAKE) --no-print-directory -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
 		echo "Downloading $$line v$$version..."; \
 		if [ ! -f "$(DOWNLOAD_DIR)/$$archive" ]; then \
 			echo "Downloading $$url"; \
@@ -64,7 +64,7 @@ sdk-all: | $(DOWNLOAD_DIR)
 
 trust: $(TOOLS_DIR)/slc-cli sdk-all
 	@set -e; \
-	$(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
+	$(MAKE) --no-print-directory -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
 		echo "Trusting Silicon Labs SDK signature for $$line..."; \
 		$(TOOLS_DIR)/slc-cli/slc signature trust --sdk "$(TOOLS_DIR)/$$line"; \
 		$(TOOLS_DIR)/slc-cli/slc signature trust --sdk "$(TOOLS_DIR)/$$line" -extpath $(abspath $(TOOLS_DIR)/spiflash_extension); \
@@ -153,7 +153,7 @@ clean-downloads:
 verify:
 	@echo "Verifying installed tools..."
 	@set -e; \
-	$(MAKE) -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
+	$(MAKE) --no-print-directory -s -f $(BOARD_MAKE) print-silabs-sdk-install-manifest | while IFS='|' read -r line version archive url; do \
 		if [ -d "$(TOOLS_DIR)/$$line" ]; then \
 			echo "✓ Silicon Labs SDK ($$line): $(TOOLS_DIR)/$$line"; \
 			SDK_METADATA=$$(find "$(TOOLS_DIR)/$$line" -maxdepth 1 -name '*.slcs' | head -1); \
