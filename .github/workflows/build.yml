@@ -7,19 +7,30 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      mode:
+        description: "compile_only 只编译固件；full_build 执行完整 board/build 流程"
+        required: false
+        type: choice
+        default: compile_only
+        options:
+          - compile_only
+          - full_build
       boards:
-        description: "Optional space-separated board keys to build manually. Leave empty to run the Silabs gate pipeline."
+        description: "可选，空格分隔的板子名。填写后只编译这些板子，并忽略 device_db.yaml 的 build 字段。"
         required: false
         default: ""
 
 jobs:
-  define_silabs_plan:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
+  plan:
     runs-on: ubuntu-latest
     outputs:
-      architecture_boards: ${{ steps.plan.outputs.architecture_boards }}
-      regression_boards: ${{ steps.plan.outputs.regression_boards }}
-      manifest_hash: ${{ steps.plan.outputs.manifest_hash }}
+      boards_json: ${{ steps.plan.outputs.boards_json }}
+      board_count: ${{ steps.plan.outputs.board_count }}
+      build_mode: ${{ steps.plan.outputs.build_mode }}
+      need_silabs: ${{ steps.plan.outputs.need_silabs }}
+      need_telink: ${{ steps.plan.outputs.need_telink }}
+      clear_indexes: ${{ steps.plan.outputs.clear_indexes }}
+      silabs_manifest_hash: ${{ steps.plan.outputs.silabs_manifest_hash }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,37 +40,51 @@ jobs:
       - name: Install planning dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y make yq
+          sudo apt-get install -y make python3 python3-yaml
 
-      - name: Define Silabs plan
+      - name: Resolve build plan
         id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_MODE: ${{ inputs.mode }}
+          REQUESTED_BOARDS: ${{ inputs.boards }}
         run: |
-          architecture_boards="$(make -s -f board.mk print-silabs-architecture-gate-boards)"
-          regression_boards="$(make -s -f board.mk print-silabs-regression-gate-boards)"
-          manifest="$(make -s -f board.mk print-silabs-sdk-install-manifest)"
-          ARCHITECTURE_BOARDS="${architecture_boards}" \
-          REGRESSION_BOARDS="${regression_boards}" \
-          MANIFEST="${manifest}" \
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import hashlib
+          python3 .github/scripts/resolve_build_plan.py \
+            device_db.yaml \
+            "${EVENT_NAME}" \
+            "${REQUESTED_MODE:-compile_only}" \
+            "${REQUESTED_BOARDS}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize plan
+        env:
+          BOARDS_JSON: ${{ steps.plan.outputs.boards_json }}
+          BUILD_MODE: ${{ steps.plan.outputs.build_mode }}
+          BOARD_COUNT: ${{ steps.plan.outputs.board_count }}
+          REQUESTED_BOARDS: ${{ inputs.boards }}
+        run: |
+          python3 - <<'PY'
           import json
           import os
 
-          def as_json(raw: str) -> str:
-              return json.dumps([line for line in raw.splitlines() if line.strip()])
+          boards = json.loads(os.environ["BOARDS_JSON"])
+          summary = [
+              "## Build plan",
+              "",
+              f"- mode: {os.environ['BUILD_MODE']}",
+              f"- board_count: {os.environ['BOARD_COUNT']}",
+              f"- boards override: {'yes' if os.environ['REQUESTED_BOARDS'].strip() else 'no'}",
+              "",
+              "### Boards",
+          ]
+          summary.extend(f"- {board}" for board in boards)
 
-          architecture = os.environ["ARCHITECTURE_BOARDS"]
-          regression = os.environ["REGRESSION_BOARDS"]
-          manifest = os.environ["MANIFEST"]
-
-          print(f"architecture_boards={as_json(architecture)}")
-          print(f"regression_boards={as_json(regression)}")
-          print(f"manifest_hash={hashlib.sha256(manifest.encode()).hexdigest()}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(summary) + "\n")
           PY
 
-  architecture_gate:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
-    needs: define_silabs_plan
+  build:
+    needs: plan
+    if: ${{ needs.plan.outputs.board_count != '0' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -70,7 +95,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
+          sudo apt-get install -y make python3 python3-venv python3-yaml yq unzip wget gcc-arm-none-eabi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -79,10 +104,18 @@ jobs:
           java-version: 21
 
       - name: Restore Silicon Labs tools cache
+        if: ${{ needs.plan.outputs.need_silabs == 'true' }}
         uses: actions/cache@v4
         with:
           path: silabs_tools
-          key: silabs-tools-${{ runner.os }}-${{ needs.define_silabs_plan.outputs.manifest_hash }}
+          key: silabs-tools-${{ runner.os }}-${{ needs.plan.outputs.silabs_manifest_hash }}
+
+      - name: Restore Telink tools cache
+        if: ${{ needs.plan.outputs.need_telink == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: telink_tools
+          key: telink-tools-${{ runner.os }}-v3.7.2.0
 
       - name: Restore Python virtualenv cache
         uses: actions/cache@v4
@@ -99,212 +132,63 @@ jobs:
           pip install -r requirements.txt
 
       - name: Install Silicon Labs tools
+        if: ${{ needs.plan.outputs.need_silabs == 'true' }}
         run: |
           . .venv/bin/activate
           make silabs/tools/all
 
+      - name: Install Telink tools
+        if: ${{ needs.plan.outputs.need_telink == 'true' }}
+        run: |
+          . .venv/bin/activate
+          make telink/tools/all
+
       - name: Clear OTA indexes
+        if: ${{ needs.plan.outputs.clear_indexes == 'true' }}
         run: |
           . .venv/bin/activate
           make tools/clean_z2m_index
-
-      - name: Build architecture gate boards
-        env:
-          ARCHITECTURE_BOARDS_JSON: ${{ needs.define_silabs_plan.outputs.architecture_boards }}
-        run: |
-          . .venv/bin/activate
-          python3 - <<'PY' > architecture_boards.txt
-          import json
-          import os
-          for board in json.loads(os.environ["ARCHITECTURE_BOARDS_JSON"]):
-              print(board)
-          PY
-          while read -r board; do
-            [ -n "$board" ] || continue
-            .github/scripts/build_silabs_gate.sh "$board" artifacts/architecture_gate
-          done < architecture_boards.txt
-
-      - name: Upload architecture gate artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: architecture-gate-artifacts
-          path: |
-            artifacts/architecture_gate/**
-            bin/router/**
-            bin/end_device/**
-
-  regression_gate:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.boards == '' }}
-    needs: [define_silabs_plan, architecture_gate]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Restore Silicon Labs tools cache
-        uses: actions/cache@v4
-        with:
-          path: silabs_tools
-          key: silabs-tools-${{ runner.os }}-${{ needs.define_silabs_plan.outputs.manifest_hash }}
-
-      - name: Restore Python virtualenv cache
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: python-venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
-
-      - name: Install Python requirements
-        run: |
-          if [ ! -d .venv ]; then
-            python3 -m venv .venv
-          fi
-          . .venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install Silicon Labs tools
-        run: |
-          . .venv/bin/activate
-          make silabs/tools/all
-
-      - name: Clear OTA indexes
-        run: |
-          . .venv/bin/activate
-          make tools/clean_z2m_index
-
-      - name: Build regression gate boards
-        env:
-          REGRESSION_BOARDS_JSON: ${{ needs.define_silabs_plan.outputs.regression_boards }}
-        run: |
-          . .venv/bin/activate
-          python3 - <<'PY' > regression_boards.txt
-          import json
-          import os
-          for board in json.loads(os.environ["REGRESSION_BOARDS_JSON"]):
-              print(board)
-          PY
-          while read -r board; do
-            [ -n "$board" ] || continue
-            .github/scripts/build_silabs_gate.sh "$board" artifacts/regression_gate
-          done < regression_boards.txt
-
-      - name: Upload regression gate artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-gate-artifacts
-          path: |
-            artifacts/regression_gate/**
-            bin/router/**
-            bin/end_device/**
-
-  summarize_silabs_gates:
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.boards == '') }}
-    needs: [architecture_gate, regression_gate]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Summarize gate status
-        run: |
-          {
-            echo "## Silabs gate summary"
-            echo ""
-            echo "- architecture_gate: ${{ needs.architecture_gate.result }}"
-            echo "- regression_gate: ${{ needs.regression_gate.result }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-          test "${{ needs.architecture_gate.result }}" = "success"
-          test "${{ needs.regression_gate.result }}" = "success"
-
-  manual_selected_build:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.boards != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make python3 python3-venv yq unzip wget gcc-arm-none-eabi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Restore Python virtualenv cache
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: python-venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
-
-      - name: Install Python requirements
-        run: |
-          if [ ! -d .venv ]; then
-            python3 -m venv .venv
-          fi
-          . .venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Install toolchains for selected boards
-        env:
-          SELECTED_BOARDS: ${{ inputs.boards }}
-        run: |
-          . .venv/bin/activate
-          need_silabs=0
-          need_telink=0
-          for board in ${SELECTED_BOARDS}; do
-            family="$(yq -r ".${board}.mcu_family" device_db.yaml)"
-            case "${family}" in
-              Silabs) need_silabs=1 ;;
-              Telink) need_telink=1 ;;
-            esac
-          done
-          if [ "${need_silabs}" -eq 1 ]; then
-            make silabs/tools/all
-          fi
-          if [ "${need_telink}" -eq 1 ]; then
-            make telink/tools/all
-          fi
 
       - name: Build selected boards
         env:
-          SELECTED_BOARDS: ${{ inputs.boards }}
+          BOARDS_JSON: ${{ needs.plan.outputs.boards_json }}
+          BUILD_MODE: ${{ needs.plan.outputs.build_mode }}
         run: |
           . .venv/bin/activate
-          mkdir -p artifacts/manual_selected
-          for board in ${SELECTED_BOARDS}; do
-            build_enabled="$(yq -r ".${board}.build" device_db.yaml)"
-            if [ "${build_enabled}" != "yes" ]; then
-              echo "Skipping ${board}: build disabled"
-              continue
-            fi
-            family="$(yq -r ".${board}.mcu_family" device_db.yaml)"
-            if [ "${family}" = "Silabs" ]; then
-              .github/scripts/build_silabs_gate.sh "${board}" artifacts/manual_selected
-            else
-              BOARD="${board}" make board/build 2>&1 | tee "artifacts/manual_selected/${board}.log"
-            fi
-          done
+          python3 - <<'PY' > planned_boards.txt
+          import json
+          import os
+          for board in json.loads(os.environ["BOARDS_JSON"]):
+              print(board)
+          PY
+          while read -r board; do
+            [ -n "$board" ] || continue
+            .github/scripts/build_board.sh "$board" "${BUILD_MODE}" artifacts/builds
+          done < planned_boards.txt
 
-      - name: Upload selected build artifacts
+      - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: selected-board-builds
+          name: firmware-${{ needs.plan.outputs.build_mode }}-${{ github.run_number }}
           path: |
-            artifacts/manual_selected/**
+            artifacts/builds/**
             bin/router/**
             bin/end_device/**
+
+  summarize:
+    if: ${{ always() }}
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize build result
+        run: |
+          {
+            echo "## Build result"
+            echo ""
+            echo "- mode: ${{ needs.plan.outputs.build_mode }}"
+            echo "- board_count: ${{ needs.plan.outputs.board_count }}"
+            echo "- build job: ${{ needs.build.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.plan.outputs.board_count }}" != "0" ]; then
+            test "${{ needs.build.result }}" = "success"
+          fi
