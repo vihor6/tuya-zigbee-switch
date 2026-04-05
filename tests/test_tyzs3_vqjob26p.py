@@ -44,10 +44,10 @@ def test_parser_uses_pull_direction_for_multidigit_switch_polarity() -> None:
 
         assert device.zcl_relay_get(2) == "0"
 
-        device.press_button("D15")
+        device.press_button("D15", active_high=True)
         assert device.zcl_relay_get(2) == "1"
 
-        device.release_button("D15")
+        device.release_button("D15", active_high=True)
         assert device.zcl_relay_get(2) == "0"
 
 

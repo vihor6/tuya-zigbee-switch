@@ -169,22 +169,25 @@ class Device:
     def press_button(
         self,
         pin: str,
+        active_high: bool = False,
     ) -> None:
-        self.set_gpio(pin, 0)  # Low is pressed
+        self.set_gpio(pin, 1 if active_high else 0)
         self.step_time(DEBOUNCE_MS + 10)
 
-    def release_button(self, pin: str) -> None:
-        self.set_gpio(pin, 1)  # High is released
+    def release_button(self, pin: str, active_high: bool = False) -> None:
+        self.set_gpio(pin, 0 if active_high else 1)
         self.step_time(DEBOUNCE_MS + 10)
 
-    def click_button(self, pin: str) -> None:
-        self.press_button(pin)
-        self.release_button(pin)
+    def click_button(self, pin: str, active_high: bool = False) -> None:
+        self.press_button(pin, active_high=active_high)
+        self.release_button(pin, active_high=active_high)
 
-    def long_click_button(self, pin: str, duration_ms: int = 1000) -> None:
-        self.press_button(pin)
+    def long_click_button(
+        self, pin: str, duration_ms: int = 1000, active_high: bool = False
+    ) -> None:
+        self.press_button(pin, active_high=active_high)
         self.step_time(duration_ms)
-        self.release_button(pin)
+        self.release_button(pin, active_high=active_high)
 
     def status(self) -> dict[str, str]:
         res = self.p.exec("s")

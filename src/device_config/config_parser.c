@@ -79,6 +79,7 @@ char *extract_next_entry(char **cursor);
 static const char *find_pin_tail(const char *cursor);
 static hal_gpio_pin_t parse_entry_pin(const char *cursor, const char **tail);
 static hal_gpio_pull_t parse_entry_pull(const char *cursor);
+static uint8_t entry_pressed_when_high(hal_gpio_pull_t pull);
 static uint8_t entry_pin_on_high(const char *cursor);
 
 void on_reset_clicked(void *_) {
@@ -146,6 +147,10 @@ static hal_gpio_pull_t parse_entry_pull(const char *cursor) {
     return hal_gpio_parse_pull(cursor);
 }
 
+static uint8_t entry_pressed_when_high(hal_gpio_pull_t pull) {
+    return pull == HAL_GPIO_PULL_DOWN;
+}
+
 static uint8_t entry_pin_on_high(const char *cursor) {
     return cursor == NULL || cursor[0] != 'i';
 }
@@ -201,6 +206,8 @@ void parse_config() {
             buttons[buttons_cnt].long_press_duration_ms  = 2000;
             buttons[buttons_cnt].multi_press_duration_ms = 800;
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
+            buttons[buttons_cnt].pressed_when_high       =
+                entry_pressed_when_high(pull);
             buttons[buttons_cnt].on_long_press           = on_reset_clicked;
             buttons_cnt++;
         } else if (entry[0] == 'L') {
@@ -262,7 +269,7 @@ void parse_config() {
             buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
 
             buttons[buttons_cnt].pressed_when_high =
-                (pull == HAL_GPIO_PULL_DOWN);
+                entry_pressed_when_high(pull);
             switch_clusters[switch_clusters_cnt].switch_idx = switch_clusters_cnt;
             switch_clusters[switch_clusters_cnt].mode       =
                 ZCL_ONOFF_CONFIGURATION_SWITCH_TYPE_TOGGLE;
@@ -310,6 +317,8 @@ void parse_config() {
             buttons[buttons_cnt].long_press_duration_ms  = 800;
             buttons[buttons_cnt].multi_press_duration_ms = 800;
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
+            buttons[buttons_cnt].pressed_when_high       =
+                entry_pressed_when_high(pull);
             buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
             button_t *open_button = &buttons[buttons_cnt++];
 
@@ -317,6 +326,8 @@ void parse_config() {
             buttons[buttons_cnt].long_press_duration_ms  = 800;
             buttons[buttons_cnt].multi_press_duration_ms = 800;
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
+            buttons[buttons_cnt].pressed_when_high       =
+                entry_pressed_when_high(pull);
             buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
             button_t *close_button = &buttons[buttons_cnt++];
 
