@@ -193,7 +193,6 @@ static void hal_gpio_ensure_gpioint(void) {
 // ------ Per-interrupt bookkeeping ------
 typedef struct {
     bool             in_use;
-    uint8_t          em4wu_int_no;
     hal_gpio_pin_t   hal_pin;
     uint8_t          pull_dir;
     gpio_callback_t  user_cb;
@@ -220,14 +219,6 @@ static void free_int_line(uint8_t int_no) {
 }
 
 static void _dispatch_regular(uint8_t intNo, void *ctx) {
-    (void)intNo;
-    int_slot_t *slot = (int_slot_t *)ctx;
-    if (slot) {
-        sl_zigbee_event_set_active(&slot->af_event);
-    }
-}
-
-static void _dispatch_em4wu(uint8_t intNo, void *ctx) {
     (void)intNo;
     int_slot_t *slot = (int_slot_t *)ctx;
     if (slot) {
@@ -322,7 +313,6 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
     // Gecko SDK 4.4.6 exposes regular GPIOINT callbacks here but the
     // EM4WU extended registration symbol is not linkable in this CI/tool
     // combination, so keep the regular EXTI path only for the MG13 build.
-    slot->em4wu_int_no = LINE_MISSING;
 }
 
 void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
@@ -330,11 +320,9 @@ void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
     uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
 
     uint8_t int_no       = LINE_MISSING;
-    uint8_t em4wu_int_no = LINE_MISSING;
     for (uint8_t i = 0; i < MAX_INT_LINES; i++) {
         if (s_slots[i].in_use && s_slots[i].hal_pin == gpio_pin) {
             int_no       = i;
-            em4wu_int_no = s_slots[i].em4wu_int_no;
             break;
         }
     }

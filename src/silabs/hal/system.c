@@ -7,6 +7,12 @@
 
 void hal_system_reset(void) {
     halReboot();
+#if defined(__GNUC__)
+    __builtin_unreachable();
+#else
+    while (true) {
+    }
+#endif
 }
 
 void hal_factory_reset(void) {
