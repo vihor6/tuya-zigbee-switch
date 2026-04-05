@@ -82,6 +82,11 @@ def main() -> int:
         if requested_mode == "full_build" and not boards_input
         else "false",
         "silabs_manifest_hash": silabs_manifest_hash,
+        "artifact_name": (
+            f"firmware-{requested_mode}-{boards[0]}"
+            if len(boards) == 1
+            else f"firmware-{requested_mode}-{len(boards)}-boards"
+        ),
     }
 
     for key, value in plan.items():

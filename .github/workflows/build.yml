@@ -31,6 +31,7 @@ jobs:
       need_telink: ${{ steps.plan.outputs.need_telink }}
       clear_indexes: ${{ steps.plan.outputs.clear_indexes }}
       silabs_manifest_hash: ${{ steps.plan.outputs.silabs_manifest_hash }}
+      artifact_name: ${{ steps.plan.outputs.artifact_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -61,6 +62,7 @@ jobs:
           BUILD_MODE: ${{ steps.plan.outputs.build_mode }}
           BOARD_COUNT: ${{ steps.plan.outputs.board_count }}
           REQUESTED_BOARDS: ${{ inputs.boards }}
+          ARTIFACT_NAME: ${{ steps.plan.outputs.artifact_name }}
         run: |
           python3 - <<'PY'
           import json
@@ -73,6 +75,7 @@ jobs:
               f"- mode: {os.environ['BUILD_MODE']}",
               f"- board_count: {os.environ['BOARD_COUNT']}",
               f"- boards override: {'yes' if os.environ['REQUESTED_BOARDS'].strip() else 'no'}",
+              f"- artifact_name: {os.environ['ARTIFACT_NAME']}",
               "",
               "### Boards",
           ]
@@ -169,11 +172,9 @@ jobs:
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ needs.plan.outputs.build_mode }}-${{ github.run_number }}
+          name: ${{ needs.plan.outputs.artifact_name }}
           path: |
             artifacts/builds/**
-            bin/router/**
-            bin/end_device/**
 
   summarize:
     if: ${{ always() }}
@@ -188,6 +189,9 @@ jobs:
             echo "- mode: ${{ needs.plan.outputs.build_mode }}"
             echo "- board_count: ${{ needs.plan.outputs.board_count }}"
             echo "- build job: ${{ needs.build.result }}"
+            echo "- artifact_name: ${{ needs.plan.outputs.artifact_name }}"
+            echo ""
+            echo "下载位置：打开本次 run 页面，滚动到最下方 Artifacts 区域。"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ needs.plan.outputs.board_count }}" != "0" ]; then
             test "${{ needs.build.result }}" = "success"

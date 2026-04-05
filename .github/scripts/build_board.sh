@@ -74,4 +74,10 @@ if [[ ! -s "${BOARD_ARTIFACT_DIR}/artifacts.txt" ]]; then
     exit 1
 fi
 
+mkdir -p "${BOARD_ARTIFACT_DIR}/firmware"
+while read -r artifact_path; do
+    [ -n "${artifact_path}" ] || continue
+    cp "${artifact_path}" "${BOARD_ARTIFACT_DIR}/firmware/"
+done < "${BOARD_ARTIFACT_DIR}/artifacts.txt"
+
 cat "${BOARD_ARTIFACT_DIR}/artifacts.txt"
