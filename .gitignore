@@ -13,3 +13,4 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
+src/silabs/slcp_files/.generated-*.slcp

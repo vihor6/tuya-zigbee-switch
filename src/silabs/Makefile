@@ -121,7 +121,7 @@ endif
 ifeq ($(DEVICE_TYPE), end_device)
 	PROJECT_FILE = slcp_files/zigbee_end_device.slcp
 endif
-SELECTED_PROJECT_FILE := ../../build/silabs/generated_slcp/$(notdir $(PROJECT_FILE))
+SELECTED_PROJECT_FILE := $(dir $(PROJECT_FILE)).generated-$(SILABS_SDK_LINE)-$(notdir $(PROJECT_FILE))
 BOOTLOADER_BUILD_DIR := ../../build/silabs/bootloader
 BOOTLOADER_PROJECT_NAME := bootloader
 ifeq ($(BOOTLOADER_TYPE), internal)
