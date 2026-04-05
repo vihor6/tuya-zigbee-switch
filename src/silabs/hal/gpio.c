@@ -202,16 +202,6 @@ typedef struct {
 
 static int_slot_t s_slots[MAX_INT_LINES];
 
-static uint8_t alloc_int_line(void) {
-    for (uint8_t i = 0; i < MAX_INT_LINES; i++) {
-        if (!s_slots[i].in_use) {
-            s_slots[i].in_use = true;
-            return i;
-        }
-    }
-    return LINE_MISSING;
-}
-
 static void free_int_line(uint8_t int_no) {
     if (int_no < MAX_INT_LINES) {
         memset(&s_slots[int_no], 0, sizeof(s_slots[int_no]));
@@ -280,11 +270,28 @@ void hal_gpio_callback(hal_gpio_pin_t gpio_pin, gpio_callback_t callback,
     GPIO_Port_TypeDef port    = silabs_hal_gpio_port(gpio_pin);
     uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
 
-    uint8_t line = alloc_int_line();
-    if (line == LINE_MISSING) {
-        printf("hal_gpio_callback: no free EXTI lines\r\n");
+    // On Series-1 the external interrupt number must stay aligned with the
+    // pin number (e.g. PD15 must use EXTI line 15). Using the next free slot
+    // silently binds callbacks to the wrong line and breaks button handling.
+    uint8_t line = pin_num;
+    if (line >= MAX_INT_LINES) {
+        printf("hal_gpio_callback: invalid EXTI line %u\r\n", line);
         return;
     }
+
+    if (s_slots[line].in_use) {
+        if (s_slots[line].hal_pin != gpio_pin) {
+            printf("hal_gpio_callback: EXTI line %u already used by pin 0x%04X\r\n",
+                   line, s_slots[line].hal_pin);
+            return;
+        }
+
+        GPIO_ExtIntConfig(port, pin_num, line, false, false, false);
+        GPIOINT_CallbackUnRegister(line);
+        free_int_line(line);
+    }
+
+    s_slots[line].in_use = true;
 
     int_slot_t *slot = &s_slots[line];
     slot->hal_pin = gpio_pin;
