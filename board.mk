@@ -161,6 +161,13 @@ ifeq ($(PLATFORM_PREFIX),silabs)
 SILABS_BUILD_PREREQS += assert-silabs-sdk-selector
 endif
 
+SILABS_BUILD_ARGS := \
+	BOARD=$(BOARD) \
+	MCU=$(MCU) \
+	SILABS_SDK_LINE=$(SILABS_SDK_LINE) \
+	SILABS_SDK_VERSION=$(SILABS_SDK_VERSION) \
+	SILABS_SDK_DIR=../../$(SILABS_SDK_DIR)
+
 # Main target - builds firmware and generates all OTA files
 build: drop-old-files build-firmware generate-ota-files update-indexes
 
@@ -168,7 +175,6 @@ build: drop-old-files build-firmware generate-ota-files update-indexes
 build-firmware: $(SILABS_BUILD_PREREQS)
 ifeq ($(PLATFORM_PREFIX),silabs)
 	$(MAKE) silabs/gen \
-		BOARD=$(BOARD) \
 		VERSION_STR=$(VERSION_STR) \
 		NVM_MIGRATIONS_VERSION=$(NVM_MIGRATIONS_VERSION) \
 		FILE_VERSION=$(FILE_VERSION) \
@@ -176,10 +182,7 @@ ifeq ($(PLATFORM_PREFIX),silabs)
 		CONFIG_STR="$(CONFIG_STR)" \
 		IMAGE_TYPE=$(FIRMWARE_IMAGE_TYPE) \
 		BIN_FILE=../../$(BIN_FILE) \
-		MCU=$(MCU) \
-		SILABS_SDK_LINE=$(SILABS_SDK_LINE) \
-		SILABS_SDK_VERSION=$(SILABS_SDK_VERSION) \
-		SILABS_SDK_DIR=../../$(SILABS_SDK_DIR)
+		$(SILABS_BUILD_ARGS)
 endif
 ifeq ($(PLATFORM_PREFIX),telink)
 	$(MAKE) -C src/telink clean
@@ -193,10 +196,7 @@ endif
 		CONFIG_STR="$(CONFIG_STR)" \
 		IMAGE_TYPE=$(FIRMWARE_IMAGE_TYPE) \
 		BIN_FILE=../../$(BIN_FILE) \
-		MCU=$(MCU) \
-		SILABS_SDK_LINE=$(SILABS_SDK_LINE) \
-		SILABS_SDK_VERSION=$(SILABS_SDK_VERSION) \
-		SILABS_SDK_DIR=../../$(SILABS_SDK_DIR) \
+		$(SILABS_BUILD_ARGS) \
 		 -j32
 
 drop-old-files:
@@ -212,7 +212,8 @@ generate-normal-ota:
 		DEVICE_TYPE=$(DEVICE_TYPE) \
 		FILE_VERSION=$(FILE_VERSION) \
 		OTA_IMAGE_TYPE=$(FIRMWARE_IMAGE_TYPE) \
-		OTA_FILE=../../$(OTA_FILE)
+		OTA_FILE=../../$(OTA_FILE) \
+		$(SILABS_BUILD_ARGS)
 
 generate-tuya-ota:
 ifneq ($(PLATFORM_PREFIX),silabs)  # Silabs platform does not support Tuya migration OTAs
@@ -221,7 +222,8 @@ ifneq ($(PLATFORM_PREFIX),silabs)  # Silabs platform does not support Tuya migra
 		DEVICE_TYPE=$(DEVICE_TYPE) \
 		OTA_IMAGE_TYPE=$(FROM_STOCK_IMAGE_TYPE) \
 		OTA_MANUFACTURER_ID=$(FROM_STOCK_MANUFACTURER_ID) \
-		OTA_FILE=../../$(FROM_TUYA_OTA_FILE)
+		OTA_FILE=../../$(FROM_TUYA_OTA_FILE) \
+		$(SILABS_BUILD_ARGS)
 endif
 
 generate-force-ota:
@@ -229,7 +231,8 @@ generate-force-ota:
 		OTA_VERSION=0xFFFFFFFF \
 		DEVICE_TYPE=$(DEVICE_TYPE) \
 		OTA_IMAGE_TYPE=$(FIRMWARE_IMAGE_TYPE) \
-		OTA_FILE=../../$(FORCE_OTA_FILE)
+		OTA_FILE=../../$(FORCE_OTA_FILE) \
+		$(SILABS_BUILD_ARGS)
 
 # Update Zigbee2MQTT index files
 update-indexes:

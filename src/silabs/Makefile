@@ -95,29 +95,11 @@ endef
 
 define materialize_selected_project_file
 	@mkdir -p $(dir $(SELECTED_PROJECT_FILE))
-	@python3 - "$(PROJECT_FILE)" "$(SELECTED_PROJECT_FILE)" "$(SILABS_SDK_LINE)" "$(SILABS_SDK_VERSION)" <<'PY'
-import pathlib
-import re
-import sys
-
-source, target, sdk_line, sdk_version = sys.argv[1:]
-text = pathlib.Path(source).read_text()
-text = re.sub(
-    r"^sdk:\s*\{id:\s*[^,]+,\s*version:\s*[^}]+\}$",
-    f"sdk: {{id: {sdk_line}, version: {sdk_version}}}",
-    text,
-    count=1,
-    flags=re.MULTILINE,
-)
-if sdk_line == "simplicity_sdk":
-    text = re.sub(
-        r"(?m)^- condition: \[device_series_1\]\n  id: emlib_adc\n",
-        "",
-        text,
-        count=1,
-    )
-pathlib.Path(target).write_text(text)
-PY
+	@python3 ../../helper_scripts/materialize_silabs_slcp.py \
+		"$(PROJECT_FILE)" \
+		"$(SELECTED_PROJECT_FILE)" \
+		"$(SILABS_SDK_LINE)" \
+		"$(SILABS_SDK_VERSION)"
 endef
 
 check-silabs-sdk-dir:
