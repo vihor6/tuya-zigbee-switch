@@ -93,6 +93,33 @@ define configure_silabs_sdk
 	$(SLC_DIR)/slc configuration --sdk $(SILABS_SDK_DIR)
 endef
 
+define materialize_selected_project_file
+	@mkdir -p $(dir $(SELECTED_PROJECT_FILE))
+	@python3 - "$(PROJECT_FILE)" "$(SELECTED_PROJECT_FILE)" "$(SILABS_SDK_LINE)" "$(SILABS_SDK_VERSION)" <<'PY'
+import pathlib
+import re
+import sys
+
+source, target, sdk_line, sdk_version = sys.argv[1:]
+text = pathlib.Path(source).read_text()
+text = re.sub(
+    r"^sdk:\s*\{id:\s*[^,]+,\s*version:\s*[^}]+\}$",
+    f"sdk: {{id: {sdk_line}, version: {sdk_version}}}",
+    text,
+    count=1,
+    flags=re.MULTILINE,
+)
+if sdk_line == "simplicity_sdk":
+    text = re.sub(
+        r"(?m)^- condition: \[device_series_1\]\n  id: emlib_adc\n",
+        "",
+        text,
+        count=1,
+    )
+pathlib.Path(target).write_text(text)
+PY
+endef
+
 check-silabs-sdk-dir:
 	@if [ ! -d "$(SILABS_SDK_DIR)" ]; then \
 		echo "Missing Silicon Labs SDK directory: $(SILABS_SDK_DIR)" >&2; \
@@ -112,6 +139,7 @@ endif
 ifeq ($(DEVICE_TYPE), end_device)
 	PROJECT_FILE = slcp_files/zigbee_end_device.slcp
 endif
+SELECTED_PROJECT_FILE := ../../build/silabs/generated_slcp/$(notdir $(PROJECT_FILE))
 BOOTLOADER_BUILD_DIR := ../../build/silabs/bootloader
 BOOTLOADER_PROJECT_NAME := bootloader
 ifeq ($(BOOTLOADER_TYPE), internal)
@@ -139,6 +167,7 @@ gen: check-silabs-sdk-dir
 	$(print_silabs_provenance)
 	rm -rf $(ZIGBEE_BUILD_DIR)
 	$(configure_silabs_sdk)
+	$(materialize_selected_project_file)
 
 	@# Unset virtual environment variables to avoid conflicts and set ZAP environment
 	env -u VIRTUAL_ENV -u PYTHONHOME -u PYTHONPATH \
@@ -146,7 +175,7 @@ gen: check-silabs-sdk-dir
 		STUDIO_ADAPTER_PACK_PATH="$(abspath $(ZAP_DIR))" \
     PATH="$$(echo "$$PATH" | tr ':' '\n' | grep -v 'venv' | paste -sd: -)" \
 	$(SLC_DIR)/slc generate \
-		--project-file "$(PROJECT_FILE)" \
+		--project-file "$(SELECTED_PROJECT_FILE)" \
 		-np -nocp \
 		-d "$(ZIGBEE_BUILD_DIR)" \
 		-name $(ZIGBEE_PROJECT_NAME) \
