@@ -113,7 +113,7 @@ bool device_config_validate(void) {
 
 void parse_config() {
     device_config_read_from_nv();
-    char                  parse_buf[sizeof(device_config_str.data) + 1];
+    char parse_buf[sizeof(device_config_str.data) + 1];
     device_config_usage_t usage;
 
     if (!device_config_validate_current(&usage)) {
@@ -531,9 +531,9 @@ static bool device_config_validate_current(device_config_usage_t *usage) {
 static bool device_config_validate_buffer(char *buffer,
                                           device_config_usage_t *usage) {
     device_config_usage_t local_usage = { 0 };
-    char *                cursor      = buffer;
-    size_t                cluster_count;
-    uint8_t               endpoint_count;
+    char *  cursor = buffer;
+    size_t  cluster_count;
+    uint8_t endpoint_count;
 
     const char *zb_manufacturer = extract_next_entry(&cursor);
     const char *zb_model        = extract_next_entry(&cursor);
