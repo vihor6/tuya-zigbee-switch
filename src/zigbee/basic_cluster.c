@@ -9,6 +9,7 @@
 #include "device_config/nvm_items.h"
 #include "device_config/reset.h"
 #include "hal/nvm.h"
+#include "hal/printf_selector.h"
 #include "hal/tasks.h"
 #include <stddef.h>
 #include <stdio.h>
