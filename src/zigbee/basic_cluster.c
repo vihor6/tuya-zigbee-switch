@@ -36,7 +36,7 @@ void basic_cluster_callback_attr_write_trampoline(uint16_t attribute_id) {
     basic_cluster_store_attrs_to_nv();
     if (attribute_id == ZCL_ATTR_BASIC_DEVICE_CONFIG) {
         if (!device_config_validate()) {
-            printf("Rejecting invalid device configuration write\r\n");
+            printf("%s\r\n", "Rejecting invalid device configuration write");
             device_config_read_from_nv();
             hal_zigbee_notify_attribute_changed(1, ZCL_CLUSTER_BASIC,
                                                 ZCL_ATTR_BASIC_DEVICE_CONFIG);
