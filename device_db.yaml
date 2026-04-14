@@ -2539,7 +2539,7 @@ MODULE_TUYA_TS011F:
   stock_model_name: TS011F
   stock_manufacturer_name: _TZ3000_i9oy2rdq
   stock_converter_manufacturer: Tuya
-  stock_converter_model: TS011F_plug_1
+  stock_converter_model: WHD02
   override_z2m_device: null
   tuya_module: ZTU
   mcu_family: Telink
@@ -2693,7 +2693,7 @@ MODULE_ZBEACON_TS0002:
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/216
   store: https://www.aliexpress.com/item/1005011631868638.html
 OUTLET_BSEED_PM_TS011F:
-  human_name: BSEED PM outlet
+  human_name: BSEED PM outlet 🅰
   category: outlet
   power: mains
   neutral: required
@@ -2722,6 +2722,34 @@ OUTLET_BSEED_PM_TS011F:
   - https://www.aliexpress.com/item/1005004402438527.html
   - https://www.aliexpress.com/i/1005005835434423.html
   - https://www.aliexpress.com/item/1005003350696939.html
+OUTLET_BSEED_PM_TS011F_1:
+  human_name: BSEED PM outlet 🅱
+  category: outlet
+  power: mains
+  neutral: required
+  output: relay
+  device_type: router
+  stock_model_name: TS011F
+  stock_manufacturer_name: _TZ3000_ko6v90pg
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS011F_plug_1
+  override_z2m_device: TS011F_plug_1_2
+  tuya_module: ZTU
+  mcu_family: Telink
+  mcu: TLSR8258
+  config_str: ko6v90pg;TS011F-BS-PM-1;LC4i;SB4u;RB5;IB1i;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 47003
+  build: yes
+  status: in_progress
+  info: Power monitoring not implemented
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/145
+  store:
+  - https://www.aliexpress.com/item/1005005714480181.html
 OUTLET_BSEED_TS011F:
   human_name: BSEED outlet
   category: outlet
@@ -2818,16 +2846,16 @@ REMOTE_HOBEIAN_TS0044:
   tuya_module: none
   mcu_family: Telink
   mcu: TLSR8253F512AT32
-  config_str: bgtzm4ny;TS0044-HOB;BC4u;BD3u;BB5u;BD7u;M;
+  config_str: bgtzm4ny;TS0044-HOB;SC4u;IC3i;SD3u;ID4i;SB5u;IB6i;SD7u;IA0i;BTC5;M;
   alt_config_str: null
   old_manufacturer_names: null
   old_zb_models: null
   stock_manufacturer_id: 4417
   stock_image_type: 54179
   firmware_image_type: 43628
-  build: no
-  status: in_progress
-  info: Huge battery drain! LEDs on C3, D4, B6, A0
+  build: yes
+  status: fully_supported
+  info: Supported
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/237
   store: null
 REMOTE_IHSENO_TS0044:
@@ -2845,7 +2873,7 @@ REMOTE_IHSENO_TS0044:
   tuya_module: ZT3L
   mcu_family: Telink
   mcu: TLSR8258
-  config_str: mh9px7cq;TS0044-CUS;LC0;SD2u;RD4;SC2u;RA0;SC3u;RD7;SB4u;RB5;M;
+  config_str: mh9px7cq;TS0044-CUS;LC0;SD2u;SC2u;SC3u;SB4u;BTD2;M;
   alt_config_str: null
   old_manufacturer_names: null
   old_zb_models: null
@@ -2853,12 +2881,41 @@ REMOTE_IHSENO_TS0044:
   stock_image_type: 54179
   firmware_image_type: 43563
   build: yes
-  status: in_progress
-  info: Huge battery drain! Does not have relays.
-  threads: https://github.com/romasku/tuya-zigbee-switch/issues/171
+  status: fully_supported
+  info: Supported
+  threads: 
+   - https://github.com/romasku/tuya-zigbee-switch/issues/171
+   - https://github.com/romasku/tuya-zigbee-switch/pull/395
   store:
   - https://www.aliexpress.com/item/1005005792534172.html
   - https://allegro.pl/oferta/pilot-atlo-rc4-tuya-zigbee-tuya-smart-da-16513965398
+REMOTE_LIDL_BUTTON_TS004F:
+  human_name: LIDL button
+  category: remote
+  power: CR2032
+  neutral: without
+  output: nothing
+  device_type: end_device
+  stock_model_name: TS004F
+  stock_manufacturer_name: _TZ3000_rco1yzb1
+  stock_converter_manufacturer: Lidl
+  stock_converter_model: HG08164
+  override_z2m_device: null
+  tuya_module: none
+  mcu_family: Silabs
+  mcu: EFR32MG21A020F768IM32
+  config_str: rco1yzb1;TS004F-LIDL;BA0u;SB0u;ID0;BTC1;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 45635
+  build: yes
+  status: mostly_supported
+  info: Lower battery life
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/388
+  store: null
 REMOTE_MOES_SWITCH_A_TS0042:
   human_name: Moes 2-gang scene switch (multiple variants)
   category: remote
@@ -2961,7 +3018,7 @@ REMOTE_MOES_SWITCH_TS0044:
   tuya_module: ZT3L
   mcu_family: Telink
   mcu: TLSR8258
-  config_str: zgyzgdua;TS0044-MOES;SD2d;SC3d;SC2d;SB4d;LD4i;BTC5;M;
+  config_str: zgyzgdua;TS0044-MOES;SD2d;IC4i;SC3d;IA0i;SC2d;ID7i;SB4d;ID4i;BTC5;M;
   alt_config_str: null
   old_manufacturer_names: null
   old_zb_models: null
@@ -2969,10 +3026,118 @@ REMOTE_MOES_SWITCH_TS0044:
   stock_image_type: 54179
   firmware_image_type: 43572
   build: yes
-  status: in_progress
-  info: Huge battery drain! LEDs on C4, A0, D7 and D4, WIP for led control as press confirmation, no relays.
+  status: fully_supported
+  info: Supported
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/342
   store: https://moeshouse.com/products/zigbee-wireless-scene-switch-battery-powered?variant=43700045283643
+REMOTE_TUYA_BUTTON_TS0041:
+  human_name: Tuya button
+  category: remote
+  power: CR2430
+  neutral: without
+  output: nothing
+  device_type: end_device
+  stock_model_name: TS0041
+  stock_manufacturer_name: _TZ3000_mrpevh8p
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0041
+  override_z2m_device: SH-SC07
+  tuya_module: ZTC
+  mcu_family: Telink
+  mcu: TLSR8258
+  config_str: mrpevh8p;TS0041-TB;BB4d;SB5u;ID2;BTB5;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 45636
+  build: yes
+  status: fully_supported
+  info: Supported
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/394
+  store: null
+REMOTE_TUYA_SWITCH_TS0041:
+  human_name: Tuya/Moes 1-gang scene switch
+  category: remote
+  power: CR2430
+  neutral: without
+  output: nothing
+  device_type: end_device
+  stock_model_name: TS0041
+  stock_manufacturer_name: _TZ3000_itb0omhv
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0041
+  override_z2m_device: null
+  tuya_module: ZT3L
+  mcu_family: Telink
+  mcu: TLSR8258
+  config_str: itb0omhv;TS0041-MOES;SC2u;IC4;BTC2;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 45636
+  build: yes
+  status: mostly_supported
+  info: Needs testing
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/293
+  store: https://www.aliexpress.com/item/1005006468926708.html
+REMOTE_TUYA_SWITCH_TS0042:
+  human_name: Tuya/Moes 2-gang scene switch
+  category: remote
+  power: CR2430
+  neutral: without
+  output: nothing
+  device_type: end_device
+  stock_model_name: TS0042
+  stock_manufacturer_name: _TZ3000_tzvbimpq
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0042
+  override_z2m_device: null
+  tuya_module: ZT3L
+  mcu_family: Telink
+  mcu: TLSR8258
+  config_str: tzvbimpq;TS0042-MOES;SD2u;ID4;SC3u;ID7;BTD2;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 45637
+  build: yes
+  status: mostly_supported
+  info: Needs testing
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/293
+  store: https://www.aliexpress.com/item/1005006468926708.html
+REMOTE_TUYA_SWITCH_TS0043:
+  human_name: Tuya/Moes 3-gang scene switch
+  category: remote
+  power: CR2430
+  neutral: without
+  output: nothing
+  device_type: end_device
+  stock_model_name: TS0043
+  stock_manufacturer_name: _TZ3000_pkeqinnt
+  stock_converter_manufacturer: Tuya
+  stock_converter_model: TS0043
+  override_z2m_device: null
+  tuya_module: ZT3L
+  mcu_family: Telink
+  mcu: TLSR8258
+  config_str: pkeqinnt;TS0043-MOES;SD2u;ID4;SC2u;IC4;SC3u;ID7;BTD4;M;
+  alt_config_str: null
+  old_manufacturer_names: null
+  old_zb_models: null
+  stock_manufacturer_id: 4417
+  stock_image_type: 54179
+  firmware_image_type: 45637
+  build: yes
+  status: mostly_supported
+  info: Needs testing
+  threads: https://github.com/romasku/tuya-zigbee-switch/issues/293
+  store: https://www.aliexpress.com/item/1005006468926708.html
 REMOTE_TUYA_TS0041:
   human_name: Tuya/Moes 1-button wireless switch
   category: remote
@@ -2997,11 +3162,11 @@ REMOTE_TUYA_TS0041:
   firmware_image_type: 43579
   build: no
   status: in_progress
-  info: Needs pinout, battery drain.
+  info: Needs pinout
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/171
   store: null
 REMOTE_TUYA_TS0044:
-  human_name: Tuya 4-button wireless switch 🅰
+  human_name: Tuya/Moes 4-button wireless switch 🅰
   category: remote
   power: CR2430
   neutral: without
@@ -3015,16 +3180,16 @@ REMOTE_TUYA_TS0044:
   tuya_module: ZS3L
   mcu_family: Silabs
   mcu: EFR32MG21A020F768IM32
-  config_str: wkai4ga5;TS0044-TUYA;SA0d;SA3d;SA4d;SB0d;M;
+  config_str: wkai4ga5;TS0044-TUYA;SA0d;IC1i;SA3d;IC2i;SA4d;IC0i;SB0d;ID0i;BTA0;M;
   alt_config_str: null
   old_manufacturer_names: null
   old_zb_models: null
   stock_manufacturer_id: null
   stock_image_type: null
   firmware_image_type: 43577
-  build: no
-  status: in_progress
-  info: Huge battery drain! LEDs on C1, C2, C0, D0
+  build: yes
+  status: fully_supported
+  info: Supported
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/171
   store: null
 REMOTE_TUYA_TLSR82XX_2GANG:
@@ -3895,14 +4060,14 @@ SWITCH_BSEED_TS0726_L_4GANG:
   output: null
   device_type: end_device
   stock_model_name: TS0726
-  stock_manufacturer_name: null
+  stock_manufacturer_name: _TZ3002_eda6eitk
   stock_converter_manufacturer: Tuya
   stock_converter_model: TS0726_4_gang_scene_switch
   override_z2m_device: EC-SL-FK86ZPCS41
-  tuya_module: ZTU
+  tuya_module: null
   mcu_family: Telink
   mcu: TLSR8258
-  config_str: null____;BS4L; null
+  config_str: _TZ3002_eda6eitk;BS4L; null
   alt_config_str: null
   old_manufacturer_names: null
   old_zb_models: null
@@ -3911,7 +4076,7 @@ SWITCH_BSEED_TS0726_L_4GANG:
   firmware_image_type: 43635
   build: no
   status: in_progress
-  info: Needs ID and pinout
+  info: Needs pinout
   threads: https://github.com/romasku/tuya-zigbee-switch/issues/363
   store:
   - https://www.aliexpress.com/item/1005010747186290.html
