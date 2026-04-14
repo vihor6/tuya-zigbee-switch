@@ -21,8 +21,21 @@ const char default_config_data[] = STRINGIFY(DEFAULT_CONFIG);
 
 device_config_str_t device_config_str;
 
+static int device_config_print_len(void) {
+    return device_config_str.size <= sizeof(device_config_str.data)
+             ? (int)device_config_str.size
+             : (int)sizeof(device_config_str.data);
+}
+
 void device_config_write_to_nv() {
-    printf("Writing config to nv: %s\r\n", device_config_str.data);
+    if (device_config_str.size > sizeof(device_config_str.data)) {
+        printf("Refusing to write oversize config to NV: %u\r\n",
+               device_config_str.size);
+        return;
+    }
+
+    printf("Writing config to nv: %.*s\r\n", device_config_print_len(),
+           device_config_str.data);
     hal_nvm_status_t st = 0;
 
     printf("Size: %d\r\n", (int)sizeof(device_config_str));
@@ -53,6 +66,6 @@ void device_config_read_from_nv() {
         device_config_str.size = strlen((const char *)default_config_data);
     }
 
-    printf("Using config: %d chars from\r\n%s\r\n", device_config_str.size,
-           device_config_str.data);
+    printf("Using config: %d chars from\r\n%.*s\r\n", device_config_str.size,
+           device_config_print_len(), device_config_str.data);
 }

@@ -206,7 +206,7 @@ const romasku = {
                     if (!validPins.includes(pin)) throw new Error(`Pin ${pin} is invalid`);
                 }
 
-                if (value.length > 256) throw new Error('Length of config is greater than 256');
+                if (value.length > 128) throw new Error('Length of config is greater than 128');
                 if (!value.endsWith(';')) throw new Error('Should end with ;');
                 const parts = value.slice(0, -1).split(';');  // Drop last ;
                 if (parts.length < 2) throw new Error("Model and/or manufacturer missing");

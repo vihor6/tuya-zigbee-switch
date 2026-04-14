@@ -11,6 +11,8 @@
 #include "cover_cluster.h"
 #include "zigbee_commands.h"
 
+#define ARRAY_LEN(arr)    (sizeof(arr) / sizeof((arr)[0]))
+
 // ============================================================================
 // Configuration & Constants
 // ============================================================================
@@ -25,7 +27,7 @@
 extern zigbee_cover_cluster cover_clusters[];
 extern uint8_t cover_clusters_cnt;
 
-static zigbee_cover_switch_cluster *      cover_switch_cluster_by_endpoint[10];
+static zigbee_cover_switch_cluster *      cover_switch_cluster_by_endpoint[11];
 static zigbee_cover_switch_cluster_config nv_config_buffer;
 
 static const uint8_t  multistate_out_of_service = 0;
@@ -324,6 +326,10 @@ void cover_switch_cluster_on_write_attr(zigbee_cover_switch_cluster *cluster,
 
 void cover_switch_cluster_callback_attr_write_trampoline(uint8_t endpoint,
                                                          uint16_t attribute_id) {
+    if (endpoint >= ARRAY_LEN(cover_switch_cluster_by_endpoint) ||
+        cover_switch_cluster_by_endpoint[endpoint] == NULL) {
+        return;
+    }
     cover_switch_cluster_on_write_attr(cover_switch_cluster_by_endpoint[endpoint],
                                        attribute_id);
 }
@@ -347,6 +353,9 @@ void cover_switch_cluster_init(zigbee_cover_switch_cluster *cluster) {
 
 void cover_switch_cluster_add_to_endpoint(zigbee_cover_switch_cluster *cluster,
                                           hal_zigbee_endpoint *endpoint) {
+    if (endpoint->endpoint >= ARRAY_LEN(cover_switch_cluster_by_endpoint)) {
+        return;
+    }
     cover_switch_cluster_by_endpoint[endpoint->endpoint] = cluster;
     cluster->endpoint = endpoint->endpoint;
     cover_switch_cluster_init(cluster);

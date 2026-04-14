@@ -11,6 +11,7 @@
 #include "hal/nvm.h"
 #include "hal/tasks.h"
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef HAL_SILABS
 #include "silabs_config.h"
@@ -34,8 +35,13 @@ void basic_cluster_load_attrs_from_nv();
 void basic_cluster_callback_attr_write_trampoline(uint16_t attribute_id) {
     basic_cluster_store_attrs_to_nv();
     if (attribute_id == ZCL_ATTR_BASIC_DEVICE_CONFIG) {
-        device_config_str.data[device_config_str.size] =
-            0;              // NULL terminate the string
+        if (!device_config_validate()) {
+            printf("Rejecting invalid device configuration write\r\n");
+            device_config_read_from_nv();
+            hal_zigbee_notify_attribute_changed(1, ZCL_CLUSTER_BASIC,
+                                                ZCL_ATTR_BASIC_DEVICE_CONFIG);
+            return;
+        }
         device_config_write_to_nv();
         schedule_reboot(0); // Use default delay
     }
