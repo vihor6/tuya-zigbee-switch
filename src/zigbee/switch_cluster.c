@@ -11,6 +11,8 @@
 #include "relay_cluster.h"
 #include "zigbee_commands.h"
 
+#define ARRAY_LEN(arr)    (sizeof(arr) / sizeof((arr)[0]))
+
 const uint8_t  multistate_out_of_service = 0;
 const uint8_t  multistate_flags          = 0;
 const uint16_t multistate_num_of_states  = 3;
@@ -32,7 +34,7 @@ void switch_cluster_on_button_long_press(zigbee_switch_cluster *cluster);
 static bool switch_cluster_has_valid_relay(
     const zigbee_switch_cluster *cluster);
 
-zigbee_switch_cluster *switch_cluster_by_endpoint[10];
+zigbee_switch_cluster *switch_cluster_by_endpoint[11];
 
 static void sync_switch_indicator_led(zigbee_switch_cluster *cluster) {
     if (cluster->indicator_led == NULL) {
@@ -82,12 +84,18 @@ void switch_cluster_report_action(zigbee_switch_cluster *cluster);
 
 void switch_cluster_callback_attr_write_trampoline(uint8_t endpoint,
                                                    uint16_t attribute_id) {
-    switch_cluster_on_write_attr(switch_cluster_by_endpoint[endpoint],
-                                 attribute_id);
+    if (endpoint >= ARRAY_LEN(switch_cluster_by_endpoint) ||
+        switch_cluster_by_endpoint[endpoint] == NULL) {
+        return;
+    }
+    switch_cluster_on_write_attr(switch_cluster_by_endpoint[endpoint], attribute_id);
 }
 
 void switch_cluster_add_to_endpoint(zigbee_switch_cluster *cluster,
                                     hal_zigbee_endpoint *endpoint) {
+    if (endpoint->endpoint >= ARRAY_LEN(switch_cluster_by_endpoint)) {
+        return;
+    }
     switch_cluster_by_endpoint[endpoint->endpoint] = cluster;
     cluster->endpoint = endpoint->endpoint;
     switch_cluster_load_attrs_from_nv(cluster);

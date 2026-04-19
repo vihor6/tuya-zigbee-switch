@@ -5,6 +5,8 @@
 #include "hal/nvm.h"
 #include "hal/printf_selector.h"
 
+#define ARRAY_LEN(arr)    (sizeof(arr) / sizeof((arr)[0]))
+
 hal_zigbee_cmd_result_t relay_cluster_callback(zigbee_relay_cluster *cluster,
                                                uint8_t command_id,
                                                void *cmd_payload,
@@ -36,16 +38,19 @@ void relay_cluster_handle_startup_mode(zigbee_relay_cluster *cluster);
 
 void sync_indicator_led(zigbee_relay_cluster *cluster);
 
-zigbee_relay_cluster *relay_cluster_by_endpoint[10];
+zigbee_relay_cluster *relay_cluster_by_endpoint[11];
 
 void relay_cluster_callback_attr_write_trampoline(uint8_t endpoint,
                                                   uint16_t attribute_id) {
-    relay_cluster_on_write_attr(relay_cluster_by_endpoint[endpoint],
-                                attribute_id);
+    if (endpoint >= ARRAY_LEN(relay_cluster_by_endpoint) ||
+        relay_cluster_by_endpoint[endpoint] == NULL) {
+        return;
+    }
+    relay_cluster_on_write_attr(relay_cluster_by_endpoint[endpoint], attribute_id);
 }
 
 void update_relay_clusters() {
-    for (int i = 0; i < 10; i++) {
+    for (size_t i = 0; i < ARRAY_LEN(relay_cluster_by_endpoint); i++) {
         if (relay_cluster_by_endpoint[i] != NULL) {
             sync_indicator_led(relay_cluster_by_endpoint[i]);
         }
@@ -54,6 +59,9 @@ void update_relay_clusters() {
 
 void relay_cluster_add_to_endpoint(zigbee_relay_cluster *cluster,
                                    hal_zigbee_endpoint *endpoint) {
+    if (endpoint->endpoint >= ARRAY_LEN(relay_cluster_by_endpoint)) {
+        return;
+    }
     relay_cluster_by_endpoint[endpoint->endpoint] = cluster;
     cluster->endpoint = endpoint->endpoint;
     relay_cluster_load_attrs_from_nv(cluster);
@@ -98,6 +106,10 @@ hal_zigbee_cmd_result_t relay_cluster_callback_trampoline(uint8_t endpoint,
                                                           uint8_t command_id,
                                                           void *cmd_payload,
                                                           uint16_t cmd_payload_len) {
+    if (endpoint >= ARRAY_LEN(relay_cluster_by_endpoint) ||
+        relay_cluster_by_endpoint[endpoint] == NULL) {
+        return HAL_ZIGBEE_CMD_SKIPPED;
+    }
     return relay_cluster_callback(relay_cluster_by_endpoint[endpoint], command_id,
                                   cmd_payload, cmd_payload_len);
 }
@@ -133,6 +145,10 @@ hal_zigbee_cmd_result_t relay_cluster_level_callback_trampoline(uint8_t endpoint
                                                                 uint8_t command_id,
                                                                 void *cmd_payload,
                                                                 uint16_t cmd_payload_len) {
+    if (endpoint >= ARRAY_LEN(relay_cluster_by_endpoint) ||
+        relay_cluster_by_endpoint[endpoint] == NULL) {
+        return HAL_ZIGBEE_CMD_SKIPPED;
+    }
     return relay_cluster_level_callback(relay_cluster_by_endpoint[endpoint], command_id,
                                         cmd_payload, cmd_payload_len);
 }

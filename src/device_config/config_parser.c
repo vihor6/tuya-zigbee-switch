@@ -11,6 +11,7 @@
 #include "zigbee/poll_control_cluster.h"
 #include "zigbee/switch_cluster.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -26,6 +27,8 @@
 
 // Forward declarations
 void peripherals_init(void);
+
+#define ARRAY_LEN(arr)    (sizeof(arr) / sizeof((arr)[0]))
 
 // extern ota_preamble_t baseEndpoint_otaInfo;
 
@@ -76,11 +79,27 @@ battery_t battery = {
 uint32_t parse_int(const char *s);
 char *seek_until(char *cursor, char needle);
 char *extract_next_entry(char **cursor);
+
+typedef struct {
+    uint8_t leds;
+    uint8_t buttons;
+    uint8_t relay_outputs;
+    uint8_t relay_endpoints;
+    uint8_t switch_endpoints;
+    uint8_t cover_switch_endpoints;
+    uint8_t cover_endpoints;
+    bool    has_battery;
+} device_config_usage_t;
+
 static const char *find_pin_tail(const char *cursor);
 static hal_gpio_pin_t parse_entry_pin(const char *cursor, const char **tail);
 static hal_gpio_pull_t parse_entry_pull(const char *cursor);
 static uint8_t entry_pressed_when_high(hal_gpio_pull_t pull);
 static uint8_t entry_pin_on_high(const char *cursor);
+static bool device_config_copy_parse_buffer(char *dst, size_t dst_size);
+static bool device_config_validate_buffer(char *buffer,
+                                          device_config_usage_t *usage);
+static bool device_config_validate_current(device_config_usage_t *usage);
 
 void on_reset_clicked(void *_) {
     hal_factory_reset();
@@ -91,6 +110,10 @@ void on_multi_press_reset(void *_, uint8_t press_count) {
         press_count >= g_multi_press_reset_count) {
         hal_factory_reset();
     }
+}
+
+bool device_config_validate(void) {
+    return device_config_validate_current(NULL);
 }
 
 static const char *find_pin_tail(const char *cursor) {
@@ -157,7 +180,20 @@ static uint8_t entry_pin_on_high(const char *cursor) {
 
 void parse_config() {
     device_config_read_from_nv();
-    char *cursor = (char *)device_config_str.data;
+    char parse_buf[sizeof(device_config_str.data) + 1];
+    device_config_usage_t usage;
+
+    if (!device_config_validate_current(&usage)) {
+        printf("Device configuration in NVM is invalid\r\n");
+        reset_all();
+    }
+
+    if (!device_config_copy_parse_buffer(parse_buf, sizeof(parse_buf))) {
+        printf("Device configuration could not be copied for parsing\r\n");
+        reset_all();
+    }
+
+    char *cursor = parse_buf;
 
     const char *zb_manufacturer = extract_next_entry(&cursor);
 
@@ -465,12 +501,6 @@ void parse_config() {
     }
 
     hal_zigbee_init(endpoints, total_endpoints);
-    while (cursor != (char *)device_config_str.data) {
-        cursor--;
-        if (*cursor == '\0') {
-            *cursor = ';';
-        }
-    }
 
     printf("Config parsed successfully\r\n");
 }
@@ -539,4 +569,197 @@ uint32_t parse_int(const char *s) {
         s++;
     }
     return n;
+}
+
+static bool device_config_copy_parse_buffer(char *dst, size_t dst_size) {
+    if (device_config_str.size == 0 ||
+        device_config_str.size > sizeof(device_config_str.data)) {
+        printf("Invalid device config length: %u\r\n", device_config_str.size);
+        return false;
+    }
+
+    if ((size_t)device_config_str.size + 1 > dst_size) {
+        printf("Device config buffer too small for parsing\r\n");
+        return false;
+    }
+
+    if (memchr(device_config_str.data, '\0', device_config_str.size) != NULL) {
+        printf("Invalid device config: embedded NUL byte\r\n");
+        return false;
+    }
+
+    memcpy(dst, device_config_str.data, device_config_str.size);
+    dst[device_config_str.size] = '\0';
+
+    if (dst[device_config_str.size - 1] != ';') {
+        printf("Invalid device config: missing trailing ';'\r\n");
+        return false;
+    }
+
+    return true;
+}
+
+static bool device_config_validate_current(device_config_usage_t *usage) {
+    char parse_buf[sizeof(device_config_str.data) + 1];
+
+    return device_config_copy_parse_buffer(parse_buf, sizeof(parse_buf)) &&
+           device_config_validate_buffer(parse_buf, usage);
+}
+
+static bool device_config_validate_buffer(char *buffer,
+                                          device_config_usage_t *usage) {
+    device_config_usage_t local_usage = { 0 };
+    char *  cursor = buffer;
+    size_t  cluster_count;
+    uint8_t endpoint_count;
+
+    const char *zb_manufacturer = extract_next_entry(&cursor);
+    const char *zb_model        = extract_next_entry(&cursor);
+
+    if (strlen(zb_manufacturer) > 31) {
+        printf("Manufacturer too big\r\n");
+        return false;
+    }
+
+    if (strlen(zb_model) > 31) {
+        printf("Model too big\r\n");
+        return false;
+    }
+
+    for (char *entry = extract_next_entry(&cursor); *entry != '\0';
+         entry = extract_next_entry(&cursor)) {
+        size_t len = strlen(entry);
+
+        if (strcmp(entry, "SLP") == 0) {
+            continue;
+        }
+
+        switch (entry[0]) {
+        case 'D':
+        case 'i':
+            if (len < 2) {
+                printf("Invalid config entry: %s\r\n", entry);
+                return false;
+            }
+            break;
+
+        case 'M':
+            if (len != 1) {
+                printf("Invalid config entry: %s\r\n", entry);
+                return false;
+            }
+            break;
+
+        case 'B':
+            if (entry[1] == 'T') {
+                if (len < 4) {
+                    printf("Invalid battery config entry: %s\r\n", entry);
+                    return false;
+                }
+                local_usage.has_battery = true;
+                break;
+            }
+            if (len < 3) {
+                printf("Invalid button config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.buttons++;
+            break;
+
+        case 'L':
+        case 'I':
+            if (len < 2) {
+                printf("Invalid LED config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.leds++;
+            break;
+
+        case 'S':
+            if (len < 3) {
+                printf("Invalid switch config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.buttons++;
+            local_usage.switch_endpoints++;
+            break;
+
+        case 'R':
+            if (len < 2) {
+                printf("Invalid relay config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.relay_outputs++;
+            local_usage.relay_endpoints++;
+            break;
+
+        case 'X':
+            if (len < 5) {
+                printf("Invalid cover switch config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.buttons += 2;
+            local_usage.cover_switch_endpoints++;
+            break;
+
+        case 'C':
+            if (len < 4) {
+                printf("Invalid cover config entry: %s\r\n", entry);
+                return false;
+            }
+            local_usage.relay_outputs += 2;
+            local_usage.cover_endpoints++;
+            break;
+
+        default:
+            printf("Unknown config entry: %s\r\n", entry);
+            return false;
+        }
+    }
+
+    if (local_usage.leds > ARRAY_LEN(leds) ||
+        local_usage.buttons > ARRAY_LEN(buttons) ||
+        local_usage.relay_outputs > ARRAY_LEN(relays) ||
+        local_usage.switch_endpoints > ARRAY_LEN(switch_clusters) ||
+        local_usage.relay_endpoints > ARRAY_LEN(relay_clusters) ||
+        local_usage.cover_switch_endpoints > ARRAY_LEN(cover_switch_clusters) ||
+        local_usage.cover_endpoints > ARRAY_LEN(cover_clusters)) {
+        printf("Device config exceeds static resource limits\r\n");
+        return false;
+    }
+
+    endpoint_count = local_usage.switch_endpoints +
+                     local_usage.relay_endpoints +
+                     local_usage.cover_switch_endpoints +
+                     local_usage.cover_endpoints;
+    if (endpoint_count == 0) {
+        endpoint_count = 1;
+    }
+
+    if (endpoint_count > ARRAY_LEN(endpoints)) {
+        printf("Device config exceeds endpoint capacity\r\n");
+        return false;
+    }
+
+    cluster_count = 2 +
+                    4 * local_usage.switch_endpoints +
+                    3 * local_usage.relay_endpoints +
+                    3 * local_usage.cover_switch_endpoints +
+                    local_usage.cover_endpoints;
+    if (local_usage.has_battery) {
+        cluster_count++;
+    }
+#ifdef END_DEVICE
+    cluster_count++;
+#endif
+
+    if (cluster_count > ARRAY_LEN(clusters)) {
+        printf("Device config exceeds cluster capacity\r\n");
+        return false;
+    }
+
+    if (usage != NULL) {
+        *usage = local_usage;
+    }
+    return true;
 }

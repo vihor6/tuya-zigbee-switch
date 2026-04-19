@@ -97,7 +97,7 @@ def test_basic_cluster_read_date_code(device: Device):
 def test_basic_cluster_read_sw_build_id(device: Device):
     assert device.read_zigbee_attr(
         1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_SW_BUILD_ID
-    ).startswith("0.0.0")
+    ).strip('"').startswith("0.0.0")
 
 
 def test_network_led_control(device: Device) -> None:
@@ -159,7 +159,7 @@ def test_multi_press_reset_count_preserved_via_nvm() -> None:
         )
 
 
-def test_device_config_write_schedules_reset(tmp_path):
+def test_device_config_write_schedules_reset():
     # simple config will be written to NV and cause reset
     with StubProc(device_config="A;B;SA0u;RB0;") as proc:
         device = Device(proc)
@@ -182,4 +182,76 @@ def test_device_config_write_schedules_reset(tmp_path):
         assert (
             device.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_MODEL_ID)
             == "D"
+        )
+
+
+def test_device_config_max_length_write_schedules_reset() -> None:
+    new_cfg = (
+        "M" * 31 + ";" +
+        "N" * 31 + ";" +
+        "BA0u;BA1u;BA2u;BA3u;"
+        "SA4u;SA5u;SA6u;SA7u;"
+        "RB0;RB1;RB2;RB3;"
+        "LC0;D10;"
+    )
+    assert len(new_cfg) == 128
+
+    with StubProc(device_config="A;B;SA0u;RB0;") as proc:
+        device = Device(proc)
+        device.write_zigbee_attr(
+            1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG, new_cfg
+        )
+        device.step_time(300)
+        assert proc.wait_for_exit(1.0)
+
+    with StubProc() as proc:
+        device = Device(proc)
+        assert (
+            device.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG)
+            == new_cfg
+        )
+
+
+def test_invalid_device_config_write_is_rejected_without_reboot() -> None:
+    original_cfg = "A;B;SA0u;RB0;"
+
+    with StubProc(device_config=original_cfg) as proc:
+        device = Device(proc)
+        device.write_zigbee_attr(
+            1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG, "C;D"
+        )
+        device.step_time(500)
+
+        assert proc.is_running()
+        assert (
+            device.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG)
+            == original_cfg
+        )
+        assert (
+            device.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_MFR_NAME)
+            == "A"
+        )
+
+
+def test_over_capacity_device_config_write_is_rejected_without_reboot() -> None:
+    original_cfg = "A;B;SA0u;RB0;"
+    invalid_cfg = (
+        "A;B;"
+        "SA0u;SA1u;SA2u;SA3u;"
+        "RB0;RB1;RB2;RB3;"
+        "XA4A5u;XB0B1u;XB2B3u;"
+        "CC0C1;CC2C3;CD0D1;"
+    )
+
+    with StubProc(device_config=original_cfg) as proc:
+        device = Device(proc)
+        device.write_zigbee_attr(
+            1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG, invalid_cfg
+        )
+        device.step_time(500)
+
+        assert proc.is_running()
+        assert (
+            device.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_DEVICE_CONFIG)
+            == original_cfg
         )

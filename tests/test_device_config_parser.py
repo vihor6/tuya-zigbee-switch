@@ -8,6 +8,7 @@ from zcl_consts import (
     ZCL_ATTR_MULTISTATE_INPUT_PRESENT_VALUE,
     ZCL_ATTR_ONOFF,
     ZCL_ATTR_ONOFF_CONFIGURATION_SWITCH_MODE,
+    ZCL_ATTR_WINDOW_COVERING_MOTOR_REVERSAL,
     ZCL_ATTR_WINDOW_COVERING_MOVING,
     ZCL_CLUSTER_BASIC,
     ZCL_CLUSTER_COVER_SWITCH_CONFIG,
@@ -99,3 +100,30 @@ def test_various_configs_boot(cfg: str):
         _ = d.read_zigbee_attr(1, ZCL_CLUSTER_BASIC, ZCL_ATTR_BASIC_MFR_NAME)
     finally:
         p.stop()
+
+
+def test_endpoint_10_cover_attr_write_is_safe(device: Device):
+    assert (
+        device.read_zigbee_attr(
+            10,
+            ZCL_CLUSTER_WINDOW_COVERING,
+            ZCL_ATTR_WINDOW_COVERING_MOTOR_REVERSAL,
+        )
+        == "0"
+    )
+
+    device.write_zigbee_attr(
+        10,
+        ZCL_CLUSTER_WINDOW_COVERING,
+        ZCL_ATTR_WINDOW_COVERING_MOTOR_REVERSAL,
+        1,
+    )
+
+    assert (
+        device.read_zigbee_attr(
+            10,
+            ZCL_CLUSTER_WINDOW_COVERING,
+            ZCL_ATTR_WINDOW_COVERING_MOTOR_REVERSAL,
+        )
+        == "1"
+    )

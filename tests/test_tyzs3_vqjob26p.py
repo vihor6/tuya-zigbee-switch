@@ -58,14 +58,14 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
         "SWITCH_TUYA_VQJOB26P_TS0011": {
             "stock_model_name": "TS0011",
             "firmware_image_type": 47003,
-            "config_tokens": ["SA1u", "RF5B11", "IF1i", "M"],
-            "info_fragments": ["S2=PA1", "K2=PF5/PB11", "LED=PF1"],
+            "config_tokens": ["SA1u", "RA3A5", "IF1i", "M"],
+            "info_fragments": ["S1=PA1", "K1=PA3/PA5", "LED=PF1"],
         },
         "SWITCH_TUYA_VQJOB26P_TS0012": {
             "stock_model_name": "TS0012",
             "firmware_image_type": 47004,
-            "config_tokens": ["SD15u", "RA3A5", "IF2i", "SA0u", "RA2F4", "IF0i", "M"],
-            "info_fragments": ["S1=PD15", "S3=PA0", "K1=PA3/PA5", "K3=PA2/PF4"],
+            "config_tokens": ["SD15u", "RA3A5", "IF2i", "SA0u", "RF5B11", "IF0i", "M"],
+            "info_fragments": ["S1=PD15", "S2=PA0", "K1=PA3/PA5", "K2=PF5/PB11"],
         },
         "SWITCH_TUYA_VQJOB26P_TS0013": {
             "stock_model_name": "TS0013",
@@ -101,10 +101,7 @@ def test_vqjob26p_device_db_entries_match_requested_mapping() -> None:
         assert entry["mcu"] == "EFR32MG13P732F512GM48"
         assert entry["firmware_image_type"] == entry_expectation["firmware_image_type"]
         assert entry["status"] == "mostly_supported"
-        assert "pinout grounded" in entry["info"]
-        assert "hardware untested" in entry["info"]
-        assert "inferred" not in entry["info"]
-        assert "confirmed" not in entry["info"]
+        assert "Measured pinout" in entry["info"]
         for fragment in entry_expectation["info_fragments"]:
             assert fragment in entry["info"]
 
