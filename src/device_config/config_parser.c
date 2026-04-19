@@ -244,11 +244,11 @@ void parse_config() {
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
             buttons[buttons_cnt].pressed_when_high       =
                 entry_pressed_when_high(pull);
-            buttons[buttons_cnt].on_long_press           = on_reset_clicked;
+            buttons[buttons_cnt].on_long_press = on_reset_clicked;
             buttons_cnt++;
         } else if (entry[0] == 'L') {
-            const char *  tail = NULL;
-            hal_gpio_pin_t pin = parse_entry_pin(entry + 1, &tail);
+            const char *   tail = NULL;
+            hal_gpio_pin_t pin  = parse_entry_pin(entry + 1, &tail);
             hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
             leds[leds_cnt].pin     = pin;
             leds[leds_cnt].on_high = entry_pin_on_high(tail);
@@ -262,8 +262,8 @@ void parse_config() {
             has_dedicated_status_led = true;
             leds_cnt++;
         } else if (entry[0] == 'I') {
-            const char *  tail = NULL;
-            hal_gpio_pin_t pin = parse_entry_pin(entry + 1, &tail);
+            const char *   tail = NULL;
+            hal_gpio_pin_t pin  = parse_entry_pin(entry + 1, &tail);
             hal_gpio_init(pin, 0, HAL_GPIO_PULL_NONE);
             leds[leds_cnt].pin     = pin;
             leds[leds_cnt].on_high = entry_pin_on_high(tail);
@@ -341,7 +341,7 @@ void parse_config() {
             relays_cnt++;
             relay_clusters_cnt++;
         } else if (entry[0] == 'X') {
-            const char *    tail = NULL;
+            const char *    tail      = NULL;
             hal_gpio_pin_t  open_pin  = parse_entry_pin(entry + 1, &tail);
             hal_gpio_pin_t  close_pin = parse_entry_pin(tail, &tail);
             hal_gpio_pull_t pull      = parse_entry_pull(tail);
@@ -355,7 +355,7 @@ void parse_config() {
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
             buttons[buttons_cnt].pressed_when_high       =
                 entry_pressed_when_high(pull);
-            buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
+            buttons[buttons_cnt].on_multi_press = on_multi_press_reset;
             button_t *open_button = &buttons[buttons_cnt++];
 
             buttons[buttons_cnt].pin = close_pin;
@@ -364,7 +364,7 @@ void parse_config() {
             buttons[buttons_cnt].debounce_delay_ms       = debounce_ms;
             buttons[buttons_cnt].pressed_when_high       =
                 entry_pressed_when_high(pull);
-            buttons[buttons_cnt].on_multi_press          = on_multi_press_reset;
+            buttons[buttons_cnt].on_multi_press = on_multi_press_reset;
             button_t *close_button = &buttons[buttons_cnt++];
 
             cover_switch_clusters[cover_switch_clusters_cnt].open_button =
@@ -375,7 +375,7 @@ void parse_config() {
                 cover_switch_clusters_cnt;
             cover_switch_clusters_cnt++;
         } else if (entry[0] == 'C') {
-            const char *   tail = NULL;
+            const char *   tail      = NULL;
             hal_gpio_pin_t open_pin  = parse_entry_pin(entry + 1, &tail);
             hal_gpio_pin_t close_pin = parse_entry_pin(tail, NULL);
 
