@@ -112,11 +112,13 @@ void hal_gpio_init(hal_gpio_pin_t gpio_pin, uint8_t is_input,
 
 void hal_gpio_set(hal_gpio_pin_t gpio_pin) {
     const sl_gpio_t sl_gpio = silabs_hal_gpio_to_sl_gpio(gpio_pin);
+
     sl_gpio_set_pin(&sl_gpio);
 }
 
 void hal_gpio_clear(hal_gpio_pin_t gpio_pin) {
     const sl_gpio_t sl_gpio = silabs_hal_gpio_to_sl_gpio(gpio_pin);
+
     sl_gpio_clear_pin(&sl_gpio);
 }
 
@@ -192,11 +194,11 @@ static void hal_gpio_ensure_gpioint(void) {
 
 // ------ Per-interrupt bookkeeping ------
 typedef struct {
-    bool             in_use;
-    hal_gpio_pin_t   hal_pin;
-    uint8_t          pull_dir;
-    gpio_callback_t  user_cb;
-    void *           arg;
+    bool              in_use;
+    hal_gpio_pin_t    hal_pin;
+    uint8_t           pull_dir;
+    gpio_callback_t   user_cb;
+    void *            arg;
     sl_zigbee_event_t af_event;
 } int_slot_t;
 
@@ -218,6 +220,7 @@ static void _dispatch_regular(uint8_t intNo, void *ctx) {
 
 static void _af_event_handler(sl_zigbee_event_t *event) {
     int_slot_t *slot = (int_slot_t *)event->data;
+
     if (slot->user_cb) {
         slot->user_cb(slot->hal_pin, slot->arg);
     }
@@ -326,10 +329,11 @@ void hal_gpio_unreg_callback(hal_gpio_pin_t gpio_pin) {
     GPIO_Port_TypeDef port    = silabs_hal_gpio_port(gpio_pin);
     uint8_t           pin_num = silabs_hal_gpio_pin_number(gpio_pin);
 
-    uint8_t int_no       = LINE_MISSING;
+    uint8_t int_no = LINE_MISSING;
+
     for (uint8_t i = 0; i < MAX_INT_LINES; i++) {
         if (s_slots[i].in_use && s_slots[i].hal_pin == gpio_pin) {
-            int_no       = i;
+            int_no = i;
             break;
         }
     }
@@ -349,7 +353,7 @@ static bool parse_pin_number(const char *s, uint8_t *pin_no) {
     }
 
     uint16_t value = 0;
-    size_t index = 0;
+    size_t   index = 0;
     for (; s[index] >= '0' && s[index] <= '9'; index++) {
         value = (uint16_t)(value * 10U + (uint16_t)(s[index] - '0'));
         if (value > 15U) {

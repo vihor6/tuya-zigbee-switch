@@ -4,6 +4,7 @@
 
 static void _af_event_handler(sl_zigbee_event_t *event) {
     hal_task_t *task = (hal_task_t *)event->data;
+
     task->handler(task->arg);
 }
 

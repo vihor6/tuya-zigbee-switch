@@ -30,4 +30,5 @@ static inline sl_gpio_t silabs_hal_gpio_to_sl_gpio(hal_gpio_pin_t pin) {
                .pin  = silabs_hal_gpio_pin_number(pin),
     };
 }
+
 #endif

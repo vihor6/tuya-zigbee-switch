@@ -8,52 +8,52 @@
 #include <string.h>
 
 #if defined(_SILICON_LABS_32B_SERIES_1)
-#define HAL_SILABS_GECKO_SDK_COMPAT 1
+#define HAL_SILABS_GECKO_SDK_COMPAT    1
 
-typedef EmberAfEndpointType      sl_zigbee_af_endpoint_type_t;
-typedef EmberAfCluster           sl_zigbee_af_cluster_t;
-typedef EmberAfAttributeMetadata sl_zigbee_af_attribute_metadata_t;
-typedef EmberAfClusterId         sl_zigbee_af_cluster_id_t;
-typedef EmberAfAttributeId       sl_zigbee_af_attribute_id_t;
-typedef EmberAfClusterCommand    sl_zigbee_af_cluster_command_t;
-typedef EmberAfStatus            sl_zigbee_af_status_t;
-typedef EmberNetworkStatus       sl_zigbee_network_status_t;
-typedef EmberNodeType            sl_zigbee_node_type_t;
+typedef EmberAfEndpointType        sl_zigbee_af_endpoint_type_t;
+typedef EmberAfCluster             sl_zigbee_af_cluster_t;
+typedef EmberAfAttributeMetadata   sl_zigbee_af_attribute_metadata_t;
+typedef EmberAfClusterId           sl_zigbee_af_cluster_id_t;
+typedef EmberAfAttributeId         sl_zigbee_af_attribute_id_t;
+typedef EmberAfClusterCommand      sl_zigbee_af_cluster_command_t;
+typedef EmberAfStatus              sl_zigbee_af_status_t;
+typedef EmberNetworkStatus         sl_zigbee_network_status_t;
+typedef EmberNodeType              sl_zigbee_node_type_t;
 
-#define SL_ZIGBEE_ZCL_STATUS_SUCCESS               EMBER_ZCL_STATUS_SUCCESS
-#define SL_ZIGBEE_ZCL_STATUS_UNSUP_COMMAND         EMBER_ZCL_STATUS_UNSUP_COMMAND
-#define SL_ZIGBEE_ZCL_STATUS_INVALID_VALUE         EMBER_ZCL_STATUS_INVALID_VALUE
-#define SL_ZIGBEE_ZCL_STATUS_MALFORMED_COMMAND     EMBER_ZCL_STATUS_MALFORMED_COMMAND
-#define SL_ZIGBEE_ZCL_STATUS_ACTION_DENIED         EMBER_ZCL_STATUS_ACTION_DENIED
-#define SL_ZIGBEE_ZCL_STATUS_UNSUPPORTED_ATTRIBUTE EMBER_ZCL_STATUS_UNSUPPORTED_ATTRIBUTE
-#define SL_ZIGBEE_ZCL_STATUS_INSUFFICIENT_SPACE    EMBER_ZCL_STATUS_INSUFFICIENT_SPACE
+#define SL_ZIGBEE_ZCL_STATUS_SUCCESS                  EMBER_ZCL_STATUS_SUCCESS
+#define SL_ZIGBEE_ZCL_STATUS_UNSUP_COMMAND            EMBER_ZCL_STATUS_UNSUP_COMMAND
+#define SL_ZIGBEE_ZCL_STATUS_INVALID_VALUE            EMBER_ZCL_STATUS_INVALID_VALUE
+#define SL_ZIGBEE_ZCL_STATUS_MALFORMED_COMMAND        EMBER_ZCL_STATUS_MALFORMED_COMMAND
+#define SL_ZIGBEE_ZCL_STATUS_ACTION_DENIED            EMBER_ZCL_STATUS_ACTION_DENIED
+#define SL_ZIGBEE_ZCL_STATUS_UNSUPPORTED_ATTRIBUTE    EMBER_ZCL_STATUS_UNSUPPORTED_ATTRIBUTE
+#define SL_ZIGBEE_ZCL_STATUS_INSUFFICIENT_SPACE       EMBER_ZCL_STATUS_INSUFFICIENT_SPACE
 
-#define SL_ZIGBEE_JOINED_NETWORK         EMBER_JOINED_NETWORK
-#define SL_ZIGBEE_JOINING_NETWORK        EMBER_JOINING_NETWORK
-#define SL_ZIGBEE_UNKNOWN_DEVICE         EMBER_UNKNOWN_DEVICE
-#define SL_ZIGBEE_END_DEVICE             EMBER_END_DEVICE
-#define SL_ZIGBEE_SLEEPY_END_DEVICE      EMBER_SLEEPY_END_DEVICE
-#define SL_ZIGBEE_S2S_INITIATOR_DEVICE   EMBER_S2S_INITIATOR_DEVICE
-#define SL_ZIGBEE_S2S_TARGET_DEVICE      EMBER_S2S_TARGET_DEVICE
-#define SL_ZIGBEE_LEAVE_NWK_WITH_NO_OPTION 0
+#define SL_ZIGBEE_JOINED_NETWORK                      EMBER_JOINED_NETWORK
+#define SL_ZIGBEE_JOINING_NETWORK                     EMBER_JOINING_NETWORK
+#define SL_ZIGBEE_UNKNOWN_DEVICE                      EMBER_UNKNOWN_DEVICE
+#define SL_ZIGBEE_END_DEVICE                          EMBER_END_DEVICE
+#define SL_ZIGBEE_SLEEPY_END_DEVICE                   EMBER_SLEEPY_END_DEVICE
+#define SL_ZIGBEE_S2S_INITIATOR_DEVICE                EMBER_S2S_INITIATOR_DEVICE
+#define SL_ZIGBEE_S2S_TARGET_DEVICE                   EMBER_S2S_TARGET_DEVICE
+#define SL_ZIGBEE_LEAVE_NWK_WITH_NO_OPTION            0
 
 #ifndef ZCL_FIXED_ENDPOINT_COUNT
-#define ZCL_FIXED_ENDPOINT_COUNT FIXED_ENDPOINT_COUNT
+#define ZCL_FIXED_ENDPOINT_COUNT                      FIXED_ENDPOINT_COUNT
 #endif
 
-#define sl_zigbee_af_endpoint_enable_disable emberAfEndpointEnableDisable
+#define sl_zigbee_af_endpoint_enable_disable          emberAfEndpointEnableDisable
 #define sl_zigbee_af_send_immediate_default_response \
-    emberAfSendImmediateDefaultResponse
+        emberAfSendImmediateDefaultResponse
 #define sl_zigbee_af_reporting_attribute_change_cb \
-    emberAfReportingAttributeChangeCallback
-#define sl_zigbee_af_network_state emberAfNetworkState
-#define sl_zigbee_af_fill_external_buffer emberAfFillExternalBuffer
-#define sl_zigbee_af_set_command_endpoints emberAfSetCommandEndpoints
+        emberAfReportingAttributeChangeCallback
+#define sl_zigbee_af_network_state                    emberAfNetworkState
+#define sl_zigbee_af_fill_external_buffer             emberAfFillExternalBuffer
+#define sl_zigbee_af_set_command_endpoints            emberAfSetCommandEndpoints
 #define sl_zigbee_af_send_command_unicast_to_bindings \
-    emberAfSendCommandUnicastToBindings
+        emberAfSendCommandUnicastToBindings
 #define sl_zigbee_af_fill_command_global_server_to_client_report_attributes \
-    emberAfFillCommandGlobalServerToClientReportAttributes
-#define sl_zigbee_set_manufacturer_code emberSetManufacturerCode
+        emberAfFillCommandGlobalServerToClientReportAttributes
+#define sl_zigbee_set_manufacturer_code               emberSetManufacturerCode
 
 static inline sl_status_t sl_zigbee_leave_network(uint8_t options) {
     (void)options;
@@ -96,6 +96,7 @@ static inline uint32_t hal_silabs_ota_storage_get_last_offset(void) {
 static inline void hal_silabs_ota_storage_clear_temp_data(void) {
     emberAfOtaStorageClearTempDataCallback();
 }
+
 #else
 static inline void hal_silabs_set_short_poll_interval_ms(uint32_t poll_rate_ms) {
     sl_zigbee_af_set_short_poll_interval_ms_cb((uint16_t)poll_rate_ms);
@@ -120,6 +121,7 @@ static inline uint32_t hal_silabs_ota_storage_get_last_offset(void) {
 static inline void hal_silabs_ota_storage_clear_temp_data(void) {
     sl_zigbee_af_ota_storage_clear_temp_data_cb();
 }
+
 #endif
 
 #define MAX_CLUSTERS    32
@@ -199,6 +201,7 @@ bool emberAfPreCommandReceivedCallback(EmberAfClusterCommand *cmd) {
     return sl_zigbee_af_pre_command_received_cb(
         (sl_zigbee_af_cluster_command_t *)cmd);
 }
+
 #endif
 
 void hal_zigbee_init(hal_zigbee_endpoint *endpoints, uint8_t endpoints_cnt) {
@@ -325,6 +328,7 @@ EmberAfStatus emberAfExternalAttributeReadCallback(
         (sl_zigbee_af_attribute_metadata_t *)attributeMetadata,
         manufacturerCode, buffer, maxReadLength);
 }
+
 #endif
 
 sl_zigbee_af_status_t sl_zigbee_af_external_attribute_write_cb(
@@ -356,6 +360,7 @@ EmberAfStatus emberAfExternalAttributeWriteCallback(
         (sl_zigbee_af_attribute_metadata_t *)attributeMetadata,
         manufacturerCode, buffer);
 }
+
 #endif
 
 static bool network_steering_in_progress = false;
@@ -395,6 +400,7 @@ void sl_zigbee_af_stack_status_cb(sl_status_t status) {
 void emberAfStackStatusCallback(EmberStatus status) {
     sl_zigbee_af_stack_status_cb((sl_status_t)status);
 }
+
 #endif
 
 void hal_zigbee_leave_network() {
@@ -430,6 +436,7 @@ void emberAfPluginNetworkSteeringCompleteCallback(EmberStatus status,
     sl_zigbee_af_network_steering_complete_cb((sl_status_t)status, totalBeacons,
                                               joinAttempts, finalState);
 }
+
 #endif
 
 static uint8_t make_frame_control(const hal_zigbee_cmd *c) {

@@ -299,9 +299,9 @@ uint16_t hal_adc_read_mv() {
 
 #include "silabs/hal/silabs_gpio_utils.h"
 
-#define ADC_RESULT_MAX            0x0FFFUL
-#define ADC_AVDD_REFERENCE_MV     5000UL
-#define ADC_SINGLE_TIMEOUT_LOOPS  1000000UL
+#define ADC_RESULT_MAX              0x0FFFUL
+#define ADC_AVDD_REFERENCE_MV       5000UL
+#define ADC_SINGLE_TIMEOUT_LOOPS    1000000UL
 
 static hal_gpio_pin_t  s_adc_pin   = HAL_INVALID_PIN;
 static hal_adc_input_t s_adc_input = HAL_ADC_INPUT_PIN;
@@ -326,11 +326,11 @@ static void hal_adc_shutdown(void) {
 
 static bool hal_adc_series1_pin_to_pos_sel(hal_gpio_pin_t pin,
                                            ADC_PosSel_TypeDef *pos_sel) {
-    GPIO_Port_TypeDef port        = silabs_hal_gpio_port(pin);
-    uint8_t           pin_no      = silabs_hal_gpio_pin_number(pin);
-    uint8_t           channel     = pin_no;
-    ADC_PosSel_TypeDef base_sel   = adcPosSelAVDD;
-    bool              second_port = false;
+    GPIO_Port_TypeDef  port     = silabs_hal_gpio_port(pin);
+    uint8_t            pin_no   = silabs_hal_gpio_pin_number(pin);
+    uint8_t            channel  = pin_no;
+    ADC_PosSel_TypeDef base_sel = adcPosSelAVDD;
+    bool second_port            = false;
 
     if (pin_no > 15U || pos_sel == NULL) {
         return false;
@@ -344,7 +344,7 @@ static bool hal_adc_series1_pin_to_pos_sel(hal_gpio_pin_t pin,
 #endif
 #if (GPIO_PB_COUNT > 0)
     case gpioPortB:
-        base_sel   = adcPosSelAPORT1XCH0;
+        base_sel    = adcPosSelAPORT1XCH0;
         second_port = true;
         break;
 #endif
@@ -355,7 +355,7 @@ static bool hal_adc_series1_pin_to_pos_sel(hal_gpio_pin_t pin,
 #endif
 #if (GPIO_PD_COUNT > 0)
     case gpioPortD:
-        base_sel   = adcPosSelAPORT2YCH0;
+        base_sel    = adcPosSelAPORT2YCH0;
         second_port = true;
         break;
 #endif
@@ -366,7 +366,7 @@ static bool hal_adc_series1_pin_to_pos_sel(hal_gpio_pin_t pin,
 #endif
 #if (GPIO_PF_COUNT > 0)
     case gpioPortF:
-        base_sel   = adcPosSelAPORT3XCH0;
+        base_sel    = adcPosSelAPORT3XCH0;
         second_port = true;
         break;
 #endif
@@ -399,8 +399,8 @@ static uint16_t hal_adc_read_single_raw(ADC_PosSel_TypeDef pos_sel,
                                         ADC_Ref_TypeDef reference) {
     ADC_Init_TypeDef       init        = ADC_INIT_DEFAULT;
     ADC_InitSingle_TypeDef init_single = ADC_INITSINGLE_DEFAULT;
-    uint32_t               timeout     = ADC_SINGLE_TIMEOUT_LOOPS;
-    uint16_t               raw         = 0;
+    uint32_t timeout = ADC_SINGLE_TIMEOUT_LOOPS;
+    uint16_t raw     = 0;
 
     hal_adc_enable_clocks();
 
@@ -434,6 +434,7 @@ static uint16_t hal_adc_read_single_raw(ADC_PosSel_TypeDef pos_sel,
 
 static uint16_t hal_adc_read_supply_mv(void) {
     uint16_t raw = hal_adc_read_single_raw(adcPosSelAVDD, adcRef5V);
+
     return hal_adc_raw_to_mv(raw, ADC_AVDD_REFERENCE_MV);
 }
 
